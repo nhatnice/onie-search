@@ -15,7 +15,8 @@ export function normalizeUrl(rawUrl: string): string {
   const u = new URL(rawUrl);
   const host = isDefaultPort(u.protocol, u.port) ? u.hostname : `${u.hostname}:${u.port}`;
   const path = u.pathname.replace(/\/+$/, '') || '/';
-  return `${host}${path}`;
+
+  return `${host}${path}${u.search}${u.hash}`;
 }
 
 /** Stable SHA-1 hash of the normalized URL — used as page primary key. */

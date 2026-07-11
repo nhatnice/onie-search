@@ -89,7 +89,7 @@ export default defineConfig({
         '0 * * * *': ['crawl:enqueue'],
       },
       rollupConfig: {
-        external: ['playwright', 'playwright-core'],
+        external: ['playwright', 'playwright-core', 'jsdom'],
       },
       tasks: {
         'db:create-extensions': {

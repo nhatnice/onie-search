@@ -1,0 +1,11 @@
+node_modules
+.git
+.gitnexus
+.output
+dist
+.env
+.env.local
+*.md
+.agents
+.claude
+.opencode

@@ -1,0 +1,70 @@
+import { index, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+
+export const pageStatusEnum = pgEnum('page_status', ['pending', 'crawling', 'crawled', 'failed']);
+
+export const linkTypeEnum = pgEnum('link_type', ['sitemap', 'internal', 'outbound']);
+
+export const pages = pgTable(
+  'pages',
+  {
+    id: text('id').primaryKey(),
+    url: text('url').notNull().unique(),
+    status: pageStatusEnum().notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    crawledAt: timestamp('crawled_at', { withTimezone: true }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [index('idx_pages_status').on(t.status), index('idx_pages_url').on(t.url)],
+);
+
+export const pageMetadata = pgTable('page_metadata', {
+  pageId: text('page_id')
+    .primaryKey()
+    .references(() => pages.id),
+  title: text('title'),
+  description: text('description'),
+  thumbnail: text('thumbnail'),
+  favicon: text('favicon'),
+  jsonLd: jsonb('json_ld'),
+  language: text('language'),
+  author: text('author'),
+  publishedAt: text('published_at'),
+  modifiedAt: text('modified_at'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pageContents = pgTable('page_contents', {
+  pageId: text('page_id')
+    .primaryKey()
+    .references(() => pages.id),
+  cleanMarkdown: text('clean_markdown'),
+  cleanHtml: text('clean_html'),
+  rawHtml: text('raw_html'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pageLinks = pgTable(
+  'page_links',
+  {
+    id: text('id').primaryKey(),
+    sourcePageId: text('source_page_id')
+      .notNull()
+      .references(() => pages.id),
+    targetPageId: text('target_page_id')
+      .notNull()
+      .references(() => pages.id),
+    linkType: linkTypeEnum().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_links_source').on(t.sourcePageId),
+    index('idx_links_target').on(t.targetPageId),
+  ],
+);
+
+export type Page = typeof pages.$inferSelect;
+export type NewPage = typeof pages.$inferInsert;
+export type PageMetadata = typeof pageMetadata.$inferSelect;
+export type PageContent = typeof pageContents.$inferSelect;
+export type PageLink = typeof pageLinks.$inferSelect;

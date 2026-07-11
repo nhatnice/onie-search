@@ -13,7 +13,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client", "@tanstack/react-start/plugin/vite"]
+    "types": ["vite/client", "@tanstack/react-start/plugin/vite", "node"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "scripts", "drizzle.config.ts", "vite.config.ts"]
 }

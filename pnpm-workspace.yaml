@@ -1,3 +1,10 @@
+allowBuilds:
+  esbuild: true
+  msgpackr-extract: true
+onlyBuiltDependencies:
+  - esbuild
+  - msgpackr-extract
+
 minimumReleaseAgeExclude:
   - '@typescript/typescript-aix-ppc64@7.0.2'
   - '@typescript/typescript-darwin-arm64@7.0.2'
@@ -21,3 +28,13 @@ minimumReleaseAgeExclude:
   - '@typescript/typescript-win32-x64@7.0.2'
   - typescript@7.0.2
   - vite@8.1.4
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.4
+  vite-plus: 0.2.4
+overrides:
+  vite: 'catalog:'
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: '*'

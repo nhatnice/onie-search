@@ -38,6 +38,7 @@ export const pageContents = pgTable('page_contents', {
   pageId: text('page_id')
     .primaryKey()
     .references(() => pages.id),
+  rawMarkdown: text('raw_markdown'),
   cleanMarkdown: text('clean_markdown'),
   cleanHtml: text('clean_html'),
   rawHtml: text('raw_html'),

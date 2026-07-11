@@ -32,20 +32,20 @@ export function extractPage(document: Document, html: string, baseUrl: string): 
     attrOf(document, 'meta[http-equiv="last-modified"]', 'content');
 
   let cleanHtml: string | undefined;
-  let cleanMarkdown: string | undefined;
+  let rawMarkdown: string | undefined;
   try {
     const reader = new Readability(document);
     const article = reader.parse();
     if (article) {
       cleanHtml = article.content ?? undefined;
-      if (article.content) cleanMarkdown = turndown.turndown(article.content);
+      if (article.content) rawMarkdown = turndown.turndown(article.content);
     }
   } catch {
     // ponytail: malformed DOM — fall back to full-page markdown
   }
-  if (!cleanMarkdown) {
+  if (!rawMarkdown) {
     try {
-      cleanMarkdown = turndown.turndown(html);
+      rawMarkdown = turndown.turndown(html);
     } catch {
       // ponytail: turndown failed on malformed HTML — skip markdown
     }
@@ -57,7 +57,7 @@ export function extractPage(document: Document, html: string, baseUrl: string): 
     thumbnail,
     favicon,
     jsonLd,
-    cleanMarkdown,
+    rawMarkdown,
     cleanHtml,
     rawHtml: html,
     language,

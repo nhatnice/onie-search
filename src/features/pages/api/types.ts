@@ -20,6 +20,7 @@ export interface ExtractedPage {
   thumbnail?: string;
   favicon?: string;
   jsonLd: unknown[];
+  rawMarkdown?: string;
   cleanMarkdown?: string;
   cleanHtml?: string;
   rawHtml: string;

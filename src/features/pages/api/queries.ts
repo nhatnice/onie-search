@@ -150,7 +150,7 @@ function upsertContent(tx: DbOrTx, pid: string, extracted: ExtractedPage, now: D
     .insert(pageContents)
     .values({
       pageId: pid,
-      cleanMarkdown: extracted.cleanMarkdown,
+      rawMarkdown: extracted.rawMarkdown,
       cleanHtml: extracted.cleanHtml,
       rawHtml: extracted.rawHtml,
       updatedAt: now,
@@ -158,7 +158,7 @@ function upsertContent(tx: DbOrTx, pid: string, extracted: ExtractedPage, now: D
     .onConflictDoUpdate({
       target: pageContents.pageId,
       set: {
-        cleanMarkdown: extracted.cleanMarkdown,
+        rawMarkdown: extracted.rawMarkdown,
         cleanHtml: extracted.cleanHtml,
         rawHtml: extracted.rawHtml,
         updatedAt: now,

@@ -23,6 +23,8 @@ ENV HOST=0.0.0.0
 
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package*.json /app/pnpm-lock.yaml* /app/pnpm-workspace.yaml* ./
+COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/scripts ./scripts
 
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts

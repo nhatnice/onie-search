@@ -86,7 +86,7 @@ export default defineConfig({
         },
       },
       scheduledTasks: {
-        '0 * * * *': ['crawl:enqueue'],
+        '*/5 * * * *': ['crawl:enqueue'],
       },
       rollupConfig: {
         external: ['playwright', 'playwright-core', 'jsdom'],

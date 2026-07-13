@@ -22,7 +22,7 @@ export class CompositeCrawlerAdapter implements CrawlerAdapter {
   private readonly browser: PlaywrightCrawlerAdapter;
   private readonly browserDomainCache = new Map<string, number>();
 
-  constructor(opts: { headless?: boolean; timeoutSecs?: number } = {}) {
+  constructor(opts: { timeoutSecs?: number } = {}) {
     this.fetcher = new FetchCrawlerAdapter();
     this.browser = new PlaywrightCrawlerAdapter(opts);
   }

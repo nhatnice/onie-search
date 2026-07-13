@@ -16,7 +16,7 @@ let workerInstance: Worker<PageCrawlJobData> | undefined;
 let crawlerInstance: CrawlerAdapter | undefined;
 
 function getCrawler(): CrawlerAdapter {
-  if (!crawlerInstance) crawlerInstance = new CompositeCrawlerAdapter({ headless: true });
+  if (!crawlerInstance) crawlerInstance = new CompositeCrawlerAdapter();
   return crawlerInstance;
 }
 

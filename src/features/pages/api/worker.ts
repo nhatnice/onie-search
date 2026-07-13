@@ -2,14 +2,12 @@ import { Worker, type Job } from 'bullmq';
 
 import { CompositeCrawlerAdapter, type CrawlerAdapter, findPageExtractor } from '@/crawl';
 import { db } from '@/db/client';
-import type { DbOrTx } from '@/db/types';
 import { env } from '@/lib/env';
-import { pageId } from '@/lib/url';
 import { getRedisConnection } from '@/redis/client';
 
 import { extractPage } from './extract';
-import { getPagesByIds, markCrawled, markFailed, saveCrawlResult } from './queries';
-import { ensurePageCrawlQueue, PAGE_CRAWL_QUEUE, type PageCrawlJobData } from './queue';
+import { markCrawled, markFailed, saveCrawlResult } from './queries';
+import { PAGE_CRAWL_QUEUE, type PageCrawlJobData } from './queue';
 import type { CrawlableLink } from './types';
 
 const WORKER_CONCURRENCY = Number(process.env.PAGE_CRAWL_WORKER_CONCURRENCY) || 2;
@@ -23,9 +21,9 @@ function getCrawler(): CrawlerAdapter {
 }
 
 async function processJob(job: Job<PageCrawlJobData>) {
-  const { pageId: pid, url, crawlDepth } = job.data;
+  const { pageId: pid, url } = job.data;
   const started = Date.now();
-  console.warn(`[page-crawl] start  depth=${crawlDepth} url=${url}`);
+  console.warn(`[page-crawl] start  url=${url}`);
   const crawler = getCrawler();
   try {
     const t0 = Date.now();
@@ -49,80 +47,24 @@ async function processJob(job: Job<PageCrawlJobData>) {
       );
 
       const t3 = Date.now();
-      const crawlableLinks: CrawlableLink[] = result.links.map((l) => ({
-        url: l.url,
-        type: l.type,
-      }));
-      const { toEnqueue } = await saveCrawlResult(db, {
-        pid,
-        extracted: page,
-        links: crawlableLinks,
-      });
+      const allLinks: CrawlableLink[] = [
+        ...result.links,
+        ...result.sitemapUrls.map((u) => ({ url: u, type: 'sitemap' as const })),
+      ];
+      await saveCrawlResult(db, { pid, extracted: page, links: allLinks });
       const saveMs = Date.now() - t3;
-      console.warn(`[page-crawl] saved    ${saveMs}ms enqueue=${toEnqueue.length} url=${url}`);
-
-      await enqueueFreshPages(db, toEnqueue, crawlDepth + 1);
+      console.warn(`[page-crawl] saved    ${saveMs}ms links=${allLinks.length} url=${url}`);
     } else {
       await markCrawled(db, pid);
     }
 
-    if (result.sitemapUrls.length > 0) {
-      try {
-        await ensurePageCrawlQueue().addBulk(
-          result.sitemapUrls.map((u) => ({
-            name: 'page-crawl',
-            data: { pageId: pageId(u), url: u, crawlDepth: crawlDepth + 1 },
-            opts: { jobId: pageId(u) },
-          })),
-        );
-      } catch (err) {
-        console.error('[page-crawl] sitemap enqueue failed', err);
-      }
-    }
-
     const ms = Date.now() - started;
-    console.warn(`[page-crawl] done   depth=${crawlDepth} ${ms}ms url=${url}`);
+    console.warn(`[page-crawl] done   ${ms}ms url=${url}`);
     return { pageId: pid, links: result.links.length, sitemapUrls: result.sitemapUrls.length };
   } catch (err) {
     await markFailed(db, pid).catch(() => undefined);
-    console.error(`[page-crawl] fail   depth=${crawlDepth} url=${url}`, err);
+    console.error(`[page-crawl] fail   url=${url}`, err);
     throw err;
-  }
-}
-
-/** Enqueue pages that are missing or still pending — skip already-crawled. */
-async function enqueueFreshPages(
-  dbOrTx: DbOrTx,
-  candidates: ReadonlyArray<{ id: string; url: string }>,
-  nextDepth: number,
-): Promise<void> {
-  if (candidates.length === 0) return;
-  const existingRows = await getPagesByIds(
-    dbOrTx,
-    candidates.map((c) => c.id),
-  );
-  const existingById = new Map(existingRows.map((r) => [r.id, r]));
-  const fresh = candidates.filter((c) => {
-    const existing = existingById.get(c.id);
-    return !existing || existing.status === 'pending' || existing.status === 'failed';
-  });
-  if (fresh.length === 0) {
-    console.warn(
-      `[page-crawl] enqueue depth=${nextDepth} all ${candidates.length} candidates already crawled`,
-    );
-    return;
-  }
-  try {
-    await ensurePageCrawlQueue().addBulk(
-      fresh.map((p) => ({
-        name: 'page-crawl',
-        data: { pageId: p.id, url: p.url, crawlDepth: nextDepth },
-        opts: { jobId: p.id },
-      })),
-    );
-    console.warn(`[page-crawl] enqueued ${fresh.length} pages depth=${nextDepth}`);
-  } catch (err) {
-    console.error('[page-crawl] link enqueue failed', err);
   }
 }
 

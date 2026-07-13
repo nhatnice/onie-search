@@ -57,23 +57,13 @@ export async function insertSeedPages(db: DbOrTx, urls: string[]): Promise<numbe
   return inserted.length;
 }
 
-export interface SaveCrawlResult {
-  /** URLs to enqueue for crawling (depth + 1) */
-  toEnqueue: Array<{ id: string; url: string }>;
-}
-
 export interface SaveCrawlArgs {
   pid: string;
   extracted: ExtractedPage;
   links: readonly CrawlableLink[];
 }
 
-/**
- * Persist extracted content + link graph for one page in a single transaction.
- * Inserts target page rows (pending) for ALL links before creating edges — prevents FK violations.
- * Returns all links for the worker to enqueue.
- */
-export async function saveCrawlResult(db: DbOrTx, args: SaveCrawlArgs): Promise<SaveCrawlResult> {
+export async function saveCrawlResult(db: DbOrTx, args: SaveCrawlArgs): Promise<void> {
   const { pid, extracted, links } = args;
   const now = new Date();
   const metaSet = {
@@ -111,9 +101,6 @@ export async function saveCrawlResult(db: DbOrTx, args: SaveCrawlArgs): Promise<
     await insertEdges(tx, edges, pid);
     await markCrawledTx(tx, pid, now);
   });
-
-  const toEnqueue = links.map((l) => ({ id: pageId(l.url), url: l.url }));
-  return { toEnqueue };
 }
 
 function markCrawling(tx: DbOrTx, pid: string, now: Date) {

@@ -8,7 +8,6 @@ const PAGE_CRAWL_JOB = 'page-crawl';
 export interface PageCrawlJobData {
   pageId: string;
   url: string;
-  crawlDepth: number;
 }
 
 let queueInstance: Queue<PageCrawlJobData> | undefined;
@@ -22,26 +21,23 @@ export function ensurePageCrawlQueue(): Queue<PageCrawlJobData> {
   return queueInstance;
 }
 
-/**
- * Enqueue pages for crawling. BullMQ dedup via jobId = pageId —
- * re-enqueueing the same page is a no-op.
- */
+const DEFAULT_JOB_OPTS = {
+  attempts: 3,
+  backoff: { type: 'exponential' as const, delay: 5_000 },
+  removeOnComplete: 100,
+  removeOnFail: 500,
+};
+
 export async function enqueuePageCrawlJobs(
-  pages: Array<{ id: string; url: string; crawlDepth?: number }>,
+  pages: Array<{ id: string; url: string }>,
 ): Promise<{ added: number }> {
   if (pages.length === 0) return { added: 0 };
   const queue = ensurePageCrawlQueue();
   await queue.addBulk(
     pages.map((p) => ({
       name: PAGE_CRAWL_JOB,
-      data: { pageId: p.id, url: p.url, crawlDepth: p.crawlDepth ?? 0 },
-      opts: {
-        jobId: p.id,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5_000 },
-        removeOnComplete: 100,
-        removeOnFail: 500,
-      },
+      data: { pageId: p.id, url: p.url },
+      opts: { jobId: p.id, ...DEFAULT_JOB_OPTS },
     })),
   );
   return { added: pages.length };

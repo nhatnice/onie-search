@@ -27,11 +27,21 @@ export class PlaywrightCrawlerAdapter implements CrawlerAdapter {
   private async getBrowser(): Promise<Browser> {
     if (this.browser) return this.browser;
     if (!this.launchPromise) {
-      this.launchPromise = chromium.launch({ headless: this.headless }).then((b) => {
-        this.browser = b;
-        this.launchPromise = undefined;
-        return b;
-      });
+      // ponytail: --no-sandbox required when running as non-root in containers (Docker/CI).
+      // Drop args if running outside Docker and sandbox is desired.
+      this.launchPromise = chromium
+        .launch({
+          headless: this.headless,
+          args:
+            process.env.NODE_ENV === 'production'
+              ? ['--no-sandbox', '--disable-setuid-sandbox']
+              : [],
+        })
+        .then((b) => {
+          this.browser = b;
+          this.launchPromise = undefined;
+          return b;
+        });
     }
     return this.launchPromise;
   }

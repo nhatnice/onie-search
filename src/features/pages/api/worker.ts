@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { findPageExtractor, PlaywrightCrawlerAdapter, type CrawlerAdapter } from '@/crawl';
 import { db } from '@/db/client';
 import type { DbOrTx } from '@/db/types';
+import { env } from '@/lib/env';
 import { pageId } from '@/lib/url';
 import { getRedisConnection } from '@/redis/client';
 
@@ -110,13 +111,23 @@ async function enqueueFreshPages(
 
 export function ensurePageCrawlWorker(): Worker<PageCrawlJobData> {
   if (workerInstance) return workerInstance;
+  const conn = getRedisConnection();
+  console.warn(
+    `[page-crawl] redis status=${conn.status} url=${env.redisUrl.replace(/:[^:@]+@/, ':***@')}`,
+  );
   workerInstance = new Worker<PageCrawlJobData>(PAGE_CRAWL_QUEUE, processJob, {
-    connection: getRedisConnection(),
+    connection: conn,
     concurrency: WORKER_CONCURRENCY,
+  });
+  workerInstance.on('ready', () => {
+    console.warn('[page-crawl] worker ready, polling for jobs...');
   });
   workerInstance.on('failed', async (job, err) => {
     if (!job) return;
-    console.error(`[page-crawl] job ${job.id} failed`, err);
+    console.error(`[page-crawl] job ${job.id} failed url=${job.data.url}`, err);
+  });
+  workerInstance.on('error', (err) => {
+    console.error('[page-crawl] worker error', err);
   });
   console.warn('[page-crawl] worker started, waiting for jobs...');
   return workerInstance;

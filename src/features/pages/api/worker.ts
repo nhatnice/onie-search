@@ -1,5 +1,5 @@
 import { Worker, type Job } from 'bullmq';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 
 import { findPageExtractor, PlaywrightCrawlerAdapter, type CrawlerAdapter } from '@/crawl';
 import { db } from '@/db/client';
@@ -29,12 +29,17 @@ async function processJob(job: Job<PageCrawlJobData>) {
   console.warn(`[page-crawl] start  depth=${crawlDepth} url=${url}`);
   const crawler = getCrawler();
   try {
+    const t0 = Date.now();
     const response = await crawler.crawl(url);
+    const crawlMs = Date.now() - t0;
+    const t1 = Date.now();
     const extractor = findPageExtractor(response.contentType);
     const { html, links, sitemapUrls } = extractor.extract(response);
 
     if (html) {
-      const dom = new JSDOM(html, { url: response.url });
+      // ponytail: empty VirtualConsole swallows JSDOM's internal browser console output.
+      const virtualConsole = new VirtualConsole();
+      const dom = new JSDOM(html, { url: response.url, virtualConsole });
       const page = extractPage(dom.window.document, html, response.url);
       const crawlableLinks: CrawlableLink[] = links.map((l) => ({ url: l.url, type: l.type }));
       const { toEnqueue } = await saveCrawlResult(db, {
@@ -46,6 +51,7 @@ async function processJob(job: Job<PageCrawlJobData>) {
     } else {
       await markCrawled(db, pid);
     }
+    const extractMs = Date.now() - t1;
 
     if (sitemapUrls.length > 0) {
       try {
@@ -63,7 +69,7 @@ async function processJob(job: Job<PageCrawlJobData>) {
 
     const ms = Date.now() - started;
     console.warn(
-      `[page-crawl] done   depth=${crawlDepth} links=${links.length} sitemaps=${sitemapUrls.length} ${ms}ms url=${url}`,
+      `[page-crawl] done   depth=${crawlDepth} crawl=${crawlMs}ms extract=${extractMs}ms links=${links.length} sitemaps=${sitemapUrls.length} ${ms}ms url=${url}`,
     );
     return { pageId: pid, links: links.length, sitemapUrls: sitemapUrls.length };
   } catch (err) {

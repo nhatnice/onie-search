@@ -151,6 +151,7 @@ function upsertContent(tx: DbOrTx, pid: string, extracted: ExtractedPage, now: D
     .values({
       pageId: pid,
       rawMarkdown: extracted.rawMarkdown,
+      cleanMarkdown: extracted.cleanMarkdown,
       cleanHtml: extracted.cleanHtml,
       rawHtml: extracted.rawHtml,
       updatedAt: now,
@@ -159,6 +160,7 @@ function upsertContent(tx: DbOrTx, pid: string, extracted: ExtractedPage, now: D
       target: pageContents.pageId,
       set: {
         rawMarkdown: extracted.rawMarkdown,
+        cleanMarkdown: extracted.cleanMarkdown,
         cleanHtml: extracted.cleanHtml,
         rawHtml: extracted.rawHtml,
         updatedAt: now,

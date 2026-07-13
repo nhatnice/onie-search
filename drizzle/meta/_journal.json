@@ -15,6 +15,13 @@
       "when": 1783711207085,
       "tag": "0001_romantic_ezekiel_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783759999999,
+      "tag": "0002_rename_content_markdown",
+      "breakpoints": true
     }
   ]
 }

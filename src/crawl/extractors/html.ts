@@ -11,13 +11,14 @@ export class HtmlExtractor implements Extractor {
   }
 
   extract(response: CrawlResponse): ExtractionResult {
-    const html =
+    const rawHtml =
       typeof response.body === 'string' ? response.body : response.body.toString('utf-8');
-    const dom = createSilentJSDOM(html, { url: response.url });
+    const dom = createSilentJSDOM(rawHtml, { url: response.url });
     const document = dom.window.document;
 
     return {
-      html,
+      document,
+      rawHtml,
       links: extractAnchorLinks(document, response.url),
       sitemapUrls: extractSitemapHints(document, response.url),
     };

@@ -1,11 +1,6 @@
 import { Worker, type Job } from 'bullmq';
 
-import {
-  createSilentJSDOM,
-  findPageExtractor,
-  PlaywrightCrawlerAdapter,
-  type CrawlerAdapter,
-} from '@/crawl';
+import { CompositeCrawlerAdapter, type CrawlerAdapter, findPageExtractor } from '@/crawl';
 import { db } from '@/db/client';
 import type { DbOrTx } from '@/db/types';
 import { env } from '@/lib/env';
@@ -23,7 +18,7 @@ let workerInstance: Worker<PageCrawlJobData> | undefined;
 let crawlerInstance: CrawlerAdapter | undefined;
 
 function getCrawler(): CrawlerAdapter {
-  if (!crawlerInstance) crawlerInstance = new PlaywrightCrawlerAdapter({ headless: true });
+  if (!crawlerInstance) crawlerInstance = new CompositeCrawlerAdapter({ headless: true });
   return crawlerInstance;
 }
 
@@ -39,24 +34,25 @@ async function processJob(job: Job<PageCrawlJobData>) {
     console.warn(`[page-crawl] crawled ${crawlMs}ms status=${response.statusCode} url=${url}`);
 
     const t1 = Date.now();
-    const extractor = findPageExtractor(response.contentType);
-    const { html, links, sitemapUrls } = extractor.extract(response);
+    const result = findPageExtractor(response.contentType).extract(response);
     const extractMs = Date.now() - t1;
     console.warn(
-      `[page-crawl] extracted ${extractMs}ms links=${links.length} sitemaps=${sitemapUrls.length} url=${url}`,
+      `[page-crawl] extracted ${extractMs}ms links=${result.links.length} sitemaps=${result.sitemapUrls.length} url=${url}`,
     );
 
-    if (html) {
+    if (result.document && result.rawHtml) {
       const t2 = Date.now();
-      const dom = createSilentJSDOM(html, { url: response.url });
-      const page = extractPage(dom.window.document, html, response.url);
+      const page = extractPage(result.document, result.rawHtml, response.url);
       const parseMs = Date.now() - t2;
       console.warn(
         `[page-crawl] parsed   ${parseMs}ms markdown=${page.rawMarkdown?.length ?? 0}ch url=${url}`,
       );
 
       const t3 = Date.now();
-      const crawlableLinks: CrawlableLink[] = links.map((l) => ({ url: l.url, type: l.type }));
+      const crawlableLinks: CrawlableLink[] = result.links.map((l) => ({
+        url: l.url,
+        type: l.type,
+      }));
       const { toEnqueue } = await saveCrawlResult(db, {
         pid,
         extracted: page,
@@ -70,10 +66,10 @@ async function processJob(job: Job<PageCrawlJobData>) {
       await markCrawled(db, pid);
     }
 
-    if (sitemapUrls.length > 0) {
+    if (result.sitemapUrls.length > 0) {
       try {
         await ensurePageCrawlQueue().addBulk(
-          sitemapUrls.map((u) => ({
+          result.sitemapUrls.map((u) => ({
             name: 'page-crawl',
             data: { pageId: pageId(u), url: u, crawlDepth: crawlDepth + 1 },
             opts: { jobId: pageId(u) },
@@ -86,7 +82,7 @@ async function processJob(job: Job<PageCrawlJobData>) {
 
     const ms = Date.now() - started;
     console.warn(`[page-crawl] done   depth=${crawlDepth} ${ms}ms url=${url}`);
-    return { pageId: pid, links: links.length, sitemapUrls: sitemapUrls.length };
+    return { pageId: pid, links: result.links.length, sitemapUrls: result.sitemapUrls.length };
   } catch (err) {
     await markFailed(db, pid).catch(() => undefined);
     console.error(`[page-crawl] fail   depth=${crawlDepth} url=${url}`, err);

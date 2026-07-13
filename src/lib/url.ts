@@ -24,6 +24,15 @@ export function pageId(rawUrl: string): string {
   return createHash('sha1').update(normalizeUrl(rawUrl)).digest('hex');
 }
 
+/** Extract hostname from a URL string, or undefined if the URL is invalid. */
+export function hostnameOf(rawUrl: string): string | undefined {
+  try {
+    return new URL(rawUrl).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
 function isDefaultPort(protocol: string, port: string): boolean {
   if (!port) return true;
   if (protocol === 'https:' && port === '443') return true;

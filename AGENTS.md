@@ -4,6 +4,7 @@
 
 - **Công nghệ sử dụng (Stack):** TypeScript + React (TanStack Start), cùng với Drizzle ORM, astryxdesign.
 - Sử dụng `lucide-react` cho các icon giao diện (dùng hậu tố `Icon`, ví dụ: `import { Loader2Icon } from "lucide-react"`); đối với icon thương hiệu thì sử dụng `@icons-pack/react-simple-icons` (ví dụ: `SiGithub`).
+- **Code tự document itself.** Tên biến/hàm/field phải tự giải thích. Comment chỉ khi cần giải thích WHY (lý do, trade-off, nguồn research) — KHÔNG giải thích WHAT (code đã nói rồi). Không viết JSDoc/`ponytail:` cho code hiển nhiên.
 
 ## Hướng dẫn theo từng chủ đề (Topic-specific Guidelines)
 

@@ -3,6 +3,9 @@ export type { CrawlResponse } from './types';
 export type { Extractor, ExtractionResult, RawLink } from './extractors/types';
 
 export { PlaywrightCrawlerAdapter } from './adapters/playwright';
+export { FetchCrawlerAdapter } from './adapters/fetch';
+export { CompositeCrawlerAdapter } from './adapters/composite';
+export { requiresJsRender } from './detect-js-required';
 export { findPageExtractor } from './extractors/factory';
 export { safeUrl, attrOf, textOf } from './extractors/html-utils';
 export { createSilentJSDOM } from './jsdom';

@@ -22,10 +22,9 @@ export function ensurePageCrawlQueue(): Queue<PageCrawlJobData> {
 }
 
 const DEFAULT_JOB_OPTS = {
-  attempts: 3,
-  backoff: { type: 'exponential' as const, delay: 5_000 },
+  attempts: 1,
   removeOnComplete: 100,
-  removeOnFail: 500,
+  removeOnFail: true,
 };
 
 export async function enqueuePageCrawlJobs(

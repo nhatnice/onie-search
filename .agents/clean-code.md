@@ -77,6 +77,7 @@
 - Query ở `queries.ts`. Không viết raw SQL rải rác trong handler.
 - Transaction khi cần atomic. Không quên.
 - Migration qua `pnpm db:generate` + `pnpm db:migrate`. Không sửa migration đã chạy.
+- **Drizzle typed API first**: dùng `asc(col)`, `eq()`, `inArray()`, `and()`... thay vì `sql\`ORDER BY ...\``. Raw `sql`template chỉ khi typed API không support (e.g. function calls, UNION, dynamic CASE phức tạp). Khi dùng`sql`, comment tại sao typed API không đủ.
 
 ---
 

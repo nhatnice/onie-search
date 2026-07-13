@@ -2,11 +2,34 @@ import { Readability } from '@mozilla/readability';
 import TurndownService from 'turndown';
 
 import { attrOf, textOf } from '@/crawl';
+import { stripNullBytes } from '@/lib/sanitize';
 
 import { extractJsonLd, faviconOf, thumbnailOf } from './extract-helpers';
 import type { ExtractedPage } from './types';
 
 const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+
+const stringCleaners = [stripNullBytes];
+
+function cleanExtractedPage(p: ExtractedPage): ExtractedPage {
+  const clean = (s: string | undefined) =>
+    stringCleaners.reduce<string | undefined>((acc, fn) => fn(acc), s);
+  return {
+    title: clean(p.title),
+    description: clean(p.description),
+    thumbnail: clean(p.thumbnail),
+    favicon: clean(p.favicon),
+    jsonLd: p.jsonLd,
+    rawMarkdown: clean(p.rawMarkdown),
+    cleanMarkdown: clean(p.cleanMarkdown),
+    cleanHtml: clean(p.cleanHtml),
+    rawHtml: clean(p.rawHtml)!,
+    language: clean(p.language),
+    author: clean(p.author),
+    publishedAt: clean(p.publishedAt),
+    modifiedAt: clean(p.modifiedAt),
+  };
+}
 
 /** Parse a HTML document and extract page metadata + content. */
 export function extractPage(document: Document, html: string, baseUrl: string): ExtractedPage {
@@ -41,16 +64,12 @@ export function extractPage(document: Document, html: string, baseUrl: string): 
       cleanHtml = article.content ?? undefined;
       if (article.content) cleanMarkdown = turndown.turndown(article.content);
     }
-  } catch {
-    // ponytail: malformed DOM — skip clean extraction
-  }
+  } catch {}
   try {
     rawMarkdown = turndown.turndown(html);
-  } catch {
-    // ponytail: turndown failed on malformed HTML — skip markdown
-  }
+  } catch {}
 
-  return {
+  return cleanExtractedPage({
     title,
     description,
     thumbnail,
@@ -64,5 +83,5 @@ export function extractPage(document: Document, html: string, baseUrl: string): 
     author,
     publishedAt,
     modifiedAt,
-  };
+  });
 }

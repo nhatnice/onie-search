@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 
 import type { DbOrTx } from '@/db/types';
 import { pageId } from '@/lib/url';
@@ -21,6 +21,7 @@ export async function getPendingPages(db: DbOrTx, limit: number) {
     .select()
     .from(pages)
     .where(and(inArray(pages.status, ['pending', 'failed']), notDeleted()))
+    .orderBy(asc(pages.status), asc(pages.updatedAt))
     .limit(limit);
 }
 

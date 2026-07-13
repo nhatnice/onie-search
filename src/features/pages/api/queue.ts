@@ -35,7 +35,13 @@ export async function enqueuePageCrawlJobs(
     pages.map((p) => ({
       name: PAGE_CRAWL_JOB,
       data: { pageId: p.id, url: p.url, crawlDepth: p.crawlDepth ?? 0 },
-      opts: { jobId: p.id },
+      opts: {
+        jobId: p.id,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
     })),
   );
   return { added: pages.length };

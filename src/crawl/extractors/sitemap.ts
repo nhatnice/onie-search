@@ -1,5 +1,4 @@
-import { JSDOM } from 'jsdom';
-
+import { createSilentJSDOM } from '../jsdom';
 import type { CrawlResponse } from '../types';
 import type { ExtractionResult, Extractor, RawLink } from './types';
 
@@ -12,7 +11,7 @@ export class SitemapExtractor implements Extractor {
 
   extract(response: CrawlResponse): ExtractionResult {
     const xml = typeof response.body === 'string' ? response.body : response.body.toString('utf-8');
-    const dom = new JSDOM(xml, { contentType: 'text/xml' });
+    const dom = createSilentJSDOM(xml, { contentType: 'text/xml' });
     const document = dom.window.document;
     const seen = new Set<string>();
     const links: RawLink[] = [];

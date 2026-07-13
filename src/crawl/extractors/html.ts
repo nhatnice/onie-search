@@ -1,5 +1,4 @@
-import { JSDOM } from 'jsdom';
-
+import { createSilentJSDOM } from '../jsdom';
 import type { CrawlResponse } from '../types';
 import { extractAnchorLinks, extractSitemapHints } from './html-links';
 import type { ExtractionResult, Extractor } from './types';
@@ -14,7 +13,7 @@ export class HtmlExtractor implements Extractor {
   extract(response: CrawlResponse): ExtractionResult {
     const html =
       typeof response.body === 'string' ? response.body : response.body.toString('utf-8');
-    const dom = new JSDOM(html, { url: response.url });
+    const dom = createSilentJSDOM(html, { url: response.url });
     const document = dom.window.document;
 
     return {

@@ -1,6 +1,6 @@
 import { db } from '@/db/client';
-import { getFeedsToScan } from '@/features/feeds/api/queries';
-import { enqueueFeedDiscoveryJobs } from '@/features/feeds/api/queue';
+import { getFeedsToScan } from '@/features/feed-sources/api/queries';
+import { enqueueFeedDiscoveryJobs } from '@/features/feed-sources/api/queue';
 
 async function main() {
   const due = await getFeedsToScan(db, 100);

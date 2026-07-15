@@ -1,16 +1,35 @@
+import { AtomExtractor } from './atom';
 import { HtmlExtractor } from './html';
+import { JsonFeedExtractor } from './json-feed';
+import { RssExtractor } from './rss';
 import { SitemapExtractor } from './sitemap';
-import type { Extractor } from './types';
+import type { FeedExtractor, PageExtractor } from './types';
 
 const htmlExtractor = new HtmlExtractor();
 const sitemapExtractor = new SitemapExtractor();
+const rssExtractor = new RssExtractor();
+const atomExtractor = new AtomExtractor();
+const jsonFeedExtractor = new JsonFeedExtractor();
 
-/**
- * Route a response to the right extractor. Falls back to HTML for unknown
- * content types — HTML pages are the most common crawl target.
- */
-export function findPageExtractor(contentType: string): Extractor {
-  if (sitemapExtractor.matches(contentType)) return sitemapExtractor;
-  if (htmlExtractor.matches(contentType)) return htmlExtractor;
-  return htmlExtractor;
+const pageExtractors: readonly PageExtractor[] = [sitemapExtractor, htmlExtractor];
+const feedExtractors: readonly FeedExtractor[] = [
+  rssExtractor,
+  atomExtractor,
+  jsonFeedExtractor,
+  sitemapExtractor,
+];
+
+function firstMatch<T extends { matches: (ct: string) => boolean }>(
+  candidates: readonly T[],
+  contentType: string,
+): T | undefined {
+  return candidates.find((e) => e.matches(contentType));
+}
+
+export function findPageExtractor(contentType: string): PageExtractor {
+  return firstMatch(pageExtractors, contentType) ?? htmlExtractor;
+}
+
+export function findFeedExtractor(contentType: string): FeedExtractor {
+  return firstMatch(feedExtractors, contentType) ?? sitemapExtractor;
 }

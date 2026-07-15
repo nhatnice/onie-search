@@ -107,6 +107,169 @@ Top-level chia 3 nhóm, **một chiều** từ dưới lên:
 - Prefer named export. Default export chỉ cho UI component.
 - Barrel `index.ts` chỉ khi thực sự gom nhiều module; không tạo barrel rỗng.
 
+### Design Patterns (tham khảo thực tế)
+
+#### Strategy lookup table — khi có nhiều `if (X.matches(input)) return X`
+
+**Anti-pattern:** Factory/selectors với nhiều nhánh `if` lặp, mỗi nhánh gọi `matches()` rồi return strategy.
+
+```ts
+// ❌ DRY violation — 6 cặp if/return, thêm strategy = sửa 2 hàm
+export function findPageExtractor(ct: string): PageExtractor {
+  if (sitemapExtractor.matches(ct)) return sitemapExtractor;
+  if (htmlExtractor.matches(ct)) return htmlExtractor;
+  return htmlExtractor;
+}
+export function findFeedExtractor(ct: string): FeedExtractor {
+  if (rssExtractor.matches(ct)) return rssExtractor;
+  if (atomExtractor.matches(ct)) return atomExtractor;
+  // ...
+  return sitemapExtractor;
+}
+```
+
+**Pattern:** Mỗi strategy implement cùng interface (method `matches()`). Khai báo order matching trong array. Generic `firstMatch()` duyệt array, trả strategy đầu tiên match. Caller giữ fallback tường minh.
+
+```ts
+// ✅ DRY — thêm strategy = push 1 dòng vào array, không sửa logic
+const pageExtractors: readonly PageExtractor[] = [sitemapExtractor, htmlExtractor];
+const feedExtractors: readonly FeedExtractor[] = [
+  rssExtractor,
+  atomExtractor,
+  jsonFeedExtractor,
+  sitemapExtractor,
+];
+
+function firstMatch<T extends { matches: (input: string) => boolean }>(
+  candidates: readonly T[],
+  input: string,
+): T | undefined {
+  return candidates.find((e) => e.matches(input));
+}
+
+export function findPageExtractor(ct: string): PageExtractor {
+  return firstMatch(pageExtractors, ct) ?? htmlExtractor;
+}
+export function findFeedExtractor(ct: string): FeedExtractor {
+  return firstMatch(feedExtractors, ct) ?? sitemapExtractor;
+}
+```
+
+**Dùng khi:** Factory pattern với selection dựa trên predicate (content-type, file extension, format...), ≤ 5 strategies. **KHÔNG dùng khi:** 1-2 strategy (if/else trực tiếp đơn giản hơn — YAGNI), selection cần context phức tạp (không chỉ 1 predicate), strategy có side-effect/order-dependent phức tạp (tường minh dễ debug hơn).
+
+**Case thực tế:** `src/crawl/extractors/factory.ts` — 5 extractors (sitemap, html, rss, atom, json-feed) route theo content-type, 2 factory functions (page + feed).
+
+#### Extract step functions — khi 1 hàm gộp nhiều trách nhiệm (SRP violation)
+
+**Triệu chứng:** Hàm dài > 40 dòng, gộp 3+ trách nhiệm (fetch + transform + persist + log), khó test từng bước độc lập. Thường thấy ở worker/job handler.
+
+**Anti-pattern:** 1 hàm làm hết — orchestration (try/catch, status tracking) + business logic (canonicalize, filter) + I/O (DB insert) + observability (log timing) lẫn vào nhau.
+
+```ts
+// ❌ SRP violation — processJob gộp 4 trách nhiệm, 52 dòng, khó test từng bước
+async function processJob(job: Job) {
+  const { feedId, url } = job.data;
+  await markFeedScanning(db, feedId);
+  try {
+    const response = await crawler.crawl(url);                    // fetch
+    const result = findFeedExtractor(response.contentType).extractFeed(response);  // extract
+    const canonicalPages = result.links.map(canonicalizeUrl).filter(passFilter);  // transform
+    const canonicalFeeds = result.feeds.map(...).filter(...);
+    const [pagesAdded, feedsAdded] = await Promise.all([          // persist
+      insertDiscoveredPages(db, canonicalPages),
+      insertFeeds(db, canonicalFeeds),
+    ]);
+    await markFeedScanned(db, feedId);
+    return { feedId, pagesAdded, feedsAdded };
+  } catch (err) {
+    await markFeedFailed(db, feedId);
+    throw err;
+  }
+}
+```
+
+**Pattern:** Tách thành các step function, mỗi hàm 1 trách nhiệm. Orchestration hàm chỉ lo flow (try/catch + status), delegate logic cho step functions.
+
+```ts
+// ✅ SRP — 3 hàm, mỗi hàm 1 việc, test được độc lập
+async function fetchAndExtract(url: string): Promise<ExtractedFeeds> {
+  const response = await crawler.crawl(url);
+  const result = findFeedExtractor(response.contentType).extractFeed(response);
+  return {
+    links: result.links.map(canonicalizeUrl).filter(passFilter),
+    feeds: result.feeds.map(...).filter(...),
+  };
+}
+
+async function persist(db: Db, feedId: string, extracted: ExtractedFeeds): Promise<Result> {
+  const [pagesAdded, feedsAdded] = await Promise.all([
+    insertDiscoveredPages(db, extracted.links),
+    insertFeeds(db, extracted.feeds),
+  ]);
+  await markFeedScanned(db, feedId);
+  return { pagesAdded, feedsAdded };
+}
+
+async function processJob(job: Job): Promise<JobResult> {
+  const { feedId, url } = job.data;
+  const db = getDefaultDb();
+  await markFeedScanning(db, feedId);
+  try {
+    const extracted = await fetchAndExtract(url);
+    const result = await persist(db, feedId, extracted);
+    return { feedId, ...result };
+  } catch (err) {
+    await markFeedFailed(db, feedId);
+    throw err;
+  }
+}
+```
+
+**Quy tắc:** Hàm = 1 trách nhiệm. Nếu hàm làm 3+ việc (fetch + transform + persist), tách thành step functions. Orchestration hàm chỉ lo flow control (try/catch, status), không lo business logic.
+
+**KHÔNG split file** khi logic tuần tự, file < 150 dòng, mỗi step function test được độc lập. Split file = overkill, làm code khó follow hơn. SRP fix ở mức hàm, không phải mức file.
+
+**Dùng khi:** Hàm > 40 dòng + gộp 3+ trách nhiệm + khó test từng bước. **KHÔNG dùng khi:** Hàm < 30 dòng hoặc chỉ 1-2 trách nhiệm (YAGNI — extract thừa).
+
+**Case thực tế:** `src/features/feed-sources/api/worker.ts` — `processJob` 52 dòng gộp fetch+extract+canonicalize+filter+persist → tách thành `fetchAndExtract()` + `persist()` + `processJob()` (orchestration).
+
+#### Layer placement — đặt module đúng tầng kiến trúc
+
+**Vấn đề:** Module có side-effect (HTTP I/O, DB, cache) nằm sai tầng — đặt trong `lib/` (pure utilities, không side-effect). Hoặc folder name quá generic (`filter/`, `utils/`, `helpers/`) không nói lên concern + layer.
+
+**Triệu chứng:** `lib/filter/robots.ts` — `robots.txt` check cần HTTP fetch + per-host cache (side-effect), nhưng nằm trong `lib/` (utilities layer yêu cầu pure, không biết infrastructure).
+
+**Nguyên tắc:** Phân lớp top-level một chiều (xem bảng "Phân lớp top-level" ở trên). Mỗi tầng có vai trò + dependency rule:
+
+- `lib/` — pure functions, không side-effect, không import infrastructure
+- `crawl/`, `db/`, `redis/` — infrastructure, biết protocol/service cụ thể, CÓ side-effect
+- `features/*` — orchestrate infrastructure, không import feature khác
+
+**Anti-pattern:**
+
+```
+src/lib/filter/robots.ts     # ❌ HTTP fetch + cache trong lib/ (pure layer)
+src/lib/filter/noindex.ts    # ❌ crawl policy trong lib/ (generic folder)
+```
+
+**Pattern:** Move về đúng layer + đặt tên tường minh (concern + layer):
+
+```
+src/crawl/policies/robots.ts   # ✅ crawl policy, infrastructure layer
+src/crawl/policies/noindex.ts   # ✅ crawl policy, infrastructure layer
+```
+
+**Quy tắc:**
+
+1. **Side-effect quyết định layer.** HTTP/DB/Redis I/O → infrastructure (`crawl/`, `db/`, `redis/`). Pure logic → `lib/`.
+2. **Folder name = concern + layer.** `lib/filter/` mơ hồ (filter gì? layer nào?). `crawl/policies/` rõ ngay (crawl policy, infrastructure).
+3. **KHÔNG dùng generic names** (`filter/`, `utils/`, `helpers/`, `common/`) — mix concerns khi scale, khó tìm code.
+4. **Barrel export** từ layer root (`crawl/index.ts`) — consumer import 1 chỗ, không cần biết file nội bộ.
+
+**Dùng khi:** Module có side-effect nhưng nằm trong pure layer, HOẶC folder name không nói lên concern. **KHÔNG dùng khi:** Module đã đúng layer + tên rõ ràng (don't fix what works).
+
+**Case thực tế:** `src/lib/filter/{robots,noindex}.ts` → `src/crawl/policies/{robots,noindex}.ts`. `robots.txt` check = HTTP fetch (side-effect) → infrastructure, không thuộc `lib/` (pure). `policies/` tường minh hơn `filter/` (crawl policy check, không generic filter).
+
 ### Quy tắc Research (bắt buộc)
 
 **Trước khi setup/config/thêm feature cho bất kỳ framework/library nào, PHẢI đọc docs chính thức trước.**

@@ -1,26 +1,38 @@
 import type { CrawlResponse } from '../types';
 
-/** Raw extracted data — extractors return structured primitives, not domain objects. */
-export interface ExtractionResult {
-  /** Parsed DOM — null for non-HTML (XML, JSON). Caller reuses it for content extraction. */
-  document?: Document;
-  /** Sitemap URLs discovered via <link rel="sitemap"> or robots.txt hint. */
-  sitemapUrls: string[];
-  /** Raw HTML body for page extractors. Undefined for non-HTML (XML, JSON). */
-  rawHtml?: string;
-  /** Parsed links — internal, outbound, sitemap. Caller filters for crawlability. */
-  links: RawLink[];
+export type FeedType = 'sitemap' | 'rss' | 'atom' | 'json_feed';
+
+export interface DiscoveredFeed {
+  url: string;
+  type: FeedType;
 }
 
-/** Generic link — lib/crawl does not know about page-specific LinkType. */
 export interface RawLink {
   url: string;
   type: 'internal' | 'outbound' | 'sitemap';
   source: 'anchor' | 'sitemap' | 'meta';
 }
 
-export interface Extractor {
+export interface PageExtractionResult {
+  document: Document;
+  rawHtml: string;
+  links: RawLink[];
+  feeds: DiscoveredFeed[];
+}
+
+export interface FeedExtractionResult {
+  links: RawLink[];
+  feeds: DiscoveredFeed[];
+}
+
+export interface PageExtractor {
   readonly name: string;
   matches(contentType: string): boolean;
-  extract(response: CrawlResponse): ExtractionResult;
+  extractPage(response: CrawlResponse): PageExtractionResult;
+}
+
+export interface FeedExtractor {
+  readonly name: string;
+  matches(contentType: string): boolean;
+  extractFeed(response: CrawlResponse): FeedExtractionResult;
 }

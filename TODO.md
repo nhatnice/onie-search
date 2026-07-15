@@ -8,3 +8,7 @@ Embed nội dung web đã crawl.
 
 - Chunking & embedding (Theo từ section nội dung trong markdown). Mục tiêu: Để sau này khi search thì sẽ chỉ cần lấy đúng section nội dung liên quan.
 - ParadeDB BM25 index (defer đến khi có data per ParadeDB docs).
+
+- [ ] Đổi schema public -> crawler
+- [ ] Event driven -> Khi có url mới được tạo -> push vào queue.
+- [ ] Event driven -> Khi có page mới được crawl -> push vào queue để adapter get url

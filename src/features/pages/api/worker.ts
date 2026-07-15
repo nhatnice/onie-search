@@ -32,13 +32,15 @@ async function processJob(job: Job<PageCrawlJobData>) {
     console.warn(`[page-crawl] crawled ${crawlMs}ms status=${response.statusCode} url=${url}`);
 
     const t1 = Date.now();
-    const result = findPageExtractor(response.contentType).extract(response);
+    const extractor = findPageExtractor(response.contentType);
+    const result = extractor.extractPage(response);
     const extractMs = Date.now() - t1;
+    const sitemapHints = result.feeds.filter((f) => f.type === 'sitemap').length;
     console.warn(
-      `[page-crawl] extracted ${extractMs}ms links=${result.links.length} sitemaps=${result.sitemapUrls.length} url=${url}`,
+      `[page-crawl] extracted ${extractMs}ms links=${result.links.length} sitemaps=${sitemapHints} url=${url}`,
     );
 
-    if (result.document && result.rawHtml) {
+    if (extractor.name === 'html') {
       const t2 = Date.now();
       const page = extractPage(result.document, result.rawHtml, response.url);
       const parseMs = Date.now() - t2;
@@ -49,7 +51,9 @@ async function processJob(job: Job<PageCrawlJobData>) {
       const t3 = Date.now();
       const allLinks: CrawlableLink[] = [
         ...result.links,
-        ...result.sitemapUrls.map((u) => ({ url: u, type: 'sitemap' as const })),
+        ...result.feeds
+          .filter((f) => f.type === 'sitemap')
+          .map((f) => ({ url: f.url, type: 'sitemap' as const })),
       ];
       await saveCrawlResult(db, { pid, extracted: page, links: allLinks });
       const saveMs = Date.now() - t3;
@@ -60,7 +64,7 @@ async function processJob(job: Job<PageCrawlJobData>) {
 
     const ms = Date.now() - started;
     console.warn(`[page-crawl] done   ${ms}ms url=${url}`);
-    return { pageId: pid, links: result.links.length, sitemapUrls: result.sitemapUrls.length };
+    return { pageId: pid, links: result.links.length, sitemapUrls: sitemapHints };
   } catch (err) {
     await markFailed(db, pid).catch(() => undefined);
     console.error(`[page-crawl] fail   url=${url}`, err);

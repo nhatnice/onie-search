@@ -1,27 +1,62 @@
 import { createSilentJSDOM } from '../jsdom';
 import type { CrawlResponse } from '../types';
-import type { ExtractionResult, Extractor, RawLink } from './types';
+import type {
+  DiscoveredFeed,
+  FeedExtractionResult,
+  FeedExtractor,
+  PageExtractionResult,
+  PageExtractor,
+  RawLink,
+} from './types';
 
-export class SitemapExtractor implements Extractor {
+interface ParsedSitemap {
+  pageLinks: RawLink[];
+  childFeeds: DiscoveredFeed[];
+}
+
+function parseSitemap(response: CrawlResponse): ParsedSitemap {
+  const xml = typeof response.body === 'string' ? response.body : response.body.toString('utf-8');
+  const dom = createSilentJSDOM(xml, { contentType: 'text/xml' });
+  const document = dom.window.document;
+  const seenLink = new Set<string>();
+  const seenFeed = new Set<string>();
+  const pageLinks: RawLink[] = [];
+  const childFeeds: DiscoveredFeed[] = [];
+
+  for (const loc of Array.from(document.querySelectorAll('sitemapindex > sitemap > loc'))) {
+    const text = loc.textContent?.trim();
+    if (!text || seenFeed.has(text)) continue;
+    seenFeed.add(text);
+    childFeeds.push({ url: text, type: 'sitemap' });
+  }
+  for (const loc of Array.from(document.querySelectorAll('urlset > url > loc'))) {
+    const text = loc.textContent?.trim();
+    if (!text || seenLink.has(text)) continue;
+    seenLink.add(text);
+    pageLinks.push({ url: text, type: 'sitemap', source: 'sitemap' });
+  }
+  return { pageLinks, childFeeds };
+}
+
+export class SitemapExtractor implements PageExtractor, FeedExtractor {
   readonly name = 'sitemap';
 
   matches(contentType: string): boolean {
     return /^application\/(xml|\+xml)|text\/xml/i.test(contentType);
   }
 
-  extract(response: CrawlResponse): ExtractionResult {
-    const xml = typeof response.body === 'string' ? response.body : response.body.toString('utf-8');
-    const dom = createSilentJSDOM(xml, { contentType: 'text/xml' });
-    const document = dom.window.document;
-    const seen = new Set<string>();
-    const links: RawLink[] = [];
+  extractPage(response: CrawlResponse): PageExtractionResult {
+    const { pageLinks, childFeeds } = parseSitemap(response);
+    return {
+      document: createSilentJSDOM('', { contentType: 'text/xml' }).window.document,
+      rawHtml: typeof response.body === 'string' ? response.body : response.body.toString('utf-8'),
+      links: pageLinks,
+      feeds: childFeeds,
+    };
+  }
 
-    for (const loc of Array.from(document.querySelectorAll('url > loc, sitemap > loc'))) {
-      const text = loc.textContent?.trim();
-      if (!text || seen.has(text)) continue;
-      seen.add(text);
-      links.push({ url: text, type: 'sitemap', source: 'sitemap' });
-    }
-    return { links, sitemapUrls: [] };
+  extractFeed(response: CrawlResponse): FeedExtractionResult {
+    const { pageLinks, childFeeds } = parseSitemap(response);
+    return { links: pageLinks, feeds: childFeeds };
   }
 }

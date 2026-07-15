@@ -25,6 +25,19 @@ export async function getPendingPages(db: DbOrTx, limit: number) {
     .limit(limit);
 }
 
+export async function getCrawledPagesWithHtml(
+  db: DbOrTx,
+  limit: number,
+): Promise<Array<{ id: string; url: string; rawHtml: string | null }>> {
+  return db
+    .select({ id: pages.id, url: pages.url, rawHtml: pageContents.rawHtml })
+    .from(pages)
+    .leftJoin(pageContents, eq(pageContents.pageId, pages.id))
+    .where(and(inArray(pages.status, ['crawled']), notDeleted()))
+    .orderBy(asc(pages.crawledAt))
+    .limit(limit);
+}
+
 export async function getPageById(db: DbOrTx, id: string) {
   const [row] = await db.select().from(pages).where(eq(pages.id, id)).limit(1);
   return row;

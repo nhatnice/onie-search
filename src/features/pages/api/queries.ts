@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 
 import type { DbOrTx } from '@/db/types';
 import { pageId } from '@/lib/url';
+import type { UploadResult } from '@/storage';
 
 import { pageContents, pageLinks, pageMetadata, pages } from './schema';
 import type { CrawlableLink, ExtractedPage } from './types';
@@ -16,25 +17,16 @@ function linkRecordId(sourcePageId: string, targetPageId: string, linkType: stri
   return createHash('sha1').update(`${sourcePageId}|${targetPageId}|${linkType}`).digest('hex');
 }
 
+function contentId(pageIdValue: string, kind: 'page' | 'media' | 'file', mimeType: string): string {
+  return createHash('sha1').update(`${pageIdValue}|${kind}|${mimeType}`).digest('hex');
+}
+
 export async function getPendingPages(db: DbOrTx, limit: number) {
   return db
     .select()
     .from(pages)
     .where(and(inArray(pages.status, ['pending', 'failed']), notDeleted()))
     .orderBy(asc(pages.status), asc(pages.updatedAt))
-    .limit(limit);
-}
-
-export async function getCrawledPagesWithHtml(
-  db: DbOrTx,
-  limit: number,
-): Promise<Array<{ id: string; url: string; rawHtml: string | null }>> {
-  return db
-    .select({ id: pages.id, url: pages.url, rawHtml: pageContents.rawHtml })
-    .from(pages)
-    .leftJoin(pageContents, eq(pageContents.pageId, pages.id))
-    .where(and(inArray(pages.status, ['crawled']), notDeleted()))
-    .orderBy(asc(pages.crawledAt))
     .limit(limit);
 }
 
@@ -60,25 +52,33 @@ export async function markFailed(db: DbOrTx, pid: string) {
   await db.update(pages).set({ status: 'failed', updatedAt: new Date() }).where(eq(pages.id, pid));
 }
 
-export async function insertSeedPages(db: DbOrTx, urls: string[]): Promise<number> {
-  if (urls.length === 0) return 0;
+export async function insertSeedPages(
+  db: DbOrTx,
+  urls: string[],
+): Promise<Array<{ id: string; url: string }>> {
+  if (urls.length === 0) return [];
   const rows = urls.map((url) => ({ id: pageId(url), url, status: 'pending' as const }));
-  const inserted = await db
+  return db
     .insert(pages)
     .values(rows)
     .onConflictDoNothing()
-    .returning({ id: pages.id });
-  return inserted.length;
+    .returning({ id: pages.id, url: pages.url });
 }
 
 export interface SaveCrawlArgs {
   pid: string;
   extracted: ExtractedPage;
   links: readonly CrawlableLink[];
+  blob: UploadResult;
 }
 
-export async function saveCrawlResult(db: DbOrTx, args: SaveCrawlArgs): Promise<void> {
-  const { pid, extracted, links } = args;
+export interface SaveCrawlResult {
+  contentId: string;
+  newPages: Array<{ id: string; url: string }>;
+}
+
+export async function saveCrawlResult(db: DbOrTx, args: SaveCrawlArgs): Promise<SaveCrawlResult> {
+  const { pid, extracted, links, blob } = args;
   const now = new Date();
   const metaSet = {
     title: extracted.title,
@@ -107,13 +107,14 @@ export async function saveCrawlResult(db: DbOrTx, args: SaveCrawlArgs): Promise<
     status: 'pending' as const,
   }));
 
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     await markCrawling(tx, pid, now);
     await upsertMetadata(tx, pid, metaSet);
-    await upsertContent(tx, pid, extracted, now);
-    await insertTargetPages(tx, targetPageRows);
+    const cid = await upsertContent(tx, pid, blob, now);
+    const newPages = await insertTargetPages(tx, targetPageRows);
     await insertEdges(tx, edges, pid);
     await markCrawledTx(tx, pid, now);
+    return { contentId: cid, newPages };
   });
 }
 
@@ -146,35 +147,49 @@ function upsertMetadata(
     });
 }
 
-function upsertContent(tx: DbOrTx, pid: string, extracted: ExtractedPage, now: Date) {
-  return tx
+async function upsertContent(
+  tx: DbOrTx,
+  pid: string,
+  blob: UploadResult,
+  now: Date,
+): Promise<string> {
+  const kind = 'page' as const;
+  const mimeType = 'text/html';
+  const id = contentId(pid, kind, mimeType);
+  await tx
     .insert(pageContents)
     .values({
+      id,
       pageId: pid,
-      rawMarkdown: extracted.rawMarkdown,
-      cleanMarkdown: extracted.cleanMarkdown,
-      cleanHtml: extracted.cleanHtml,
-      rawHtml: extracted.rawHtml,
+      kind,
+      mimeType,
+      blobPath: blob.path,
+      blobSize: blob.size,
+      blobHash: blob.hash,
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      target: pageContents.pageId,
+      target: [pageContents.pageId, pageContents.kind, pageContents.mimeType],
       set: {
-        rawMarkdown: extracted.rawMarkdown,
-        cleanMarkdown: extracted.cleanMarkdown,
-        cleanHtml: extracted.cleanHtml,
-        rawHtml: extracted.rawHtml,
+        blobPath: blob.path,
+        blobSize: blob.size,
+        blobHash: blob.hash,
         updatedAt: now,
       },
     });
+  return id;
 }
 
 function insertTargetPages(
   tx: DbOrTx,
   rows: Array<{ id: string; url: string; status: 'pending' }>,
-) {
-  if (rows.length === 0) return Promise.resolve();
-  return tx.insert(pages).values(rows).onConflictDoNothing();
+): Promise<Array<{ id: string; url: string }>> {
+  if (rows.length === 0) return Promise.resolve([]);
+  return tx
+    .insert(pages)
+    .values(rows)
+    .onConflictDoNothing()
+    .returning({ id: pages.id, url: pages.url });
 }
 
 function insertEdges(

@@ -1,8 +1,19 @@
-import { index, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+} from 'drizzle-orm/pg-core';
 
 export const pageStatusEnum = pgEnum('page_status', ['pending', 'crawling', 'crawled', 'failed']);
 
 export const linkTypeEnum = pgEnum('link_type', ['sitemap', 'internal', 'outbound']);
+
+export const pageContentKindEnum = pgEnum('page_content_kind', ['page', 'media', 'file']);
 
 export const pages = pgTable(
   'pages',
@@ -34,16 +45,28 @@ export const pageMetadata = pgTable('page_metadata', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const pageContents = pgTable('page_contents', {
-  pageId: text('page_id')
-    .primaryKey()
-    .references(() => pages.id),
-  rawMarkdown: text('raw_markdown'),
-  cleanMarkdown: text('clean_markdown'),
-  cleanHtml: text('clean_html'),
-  rawHtml: text('raw_html'),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const pageContents = pgTable(
+  'page_contents',
+  {
+    id: text('id').primaryKey(),
+    pageId: text('page_id')
+      .notNull()
+      .references(() => pages.id),
+    kind: pageContentKindEnum().notNull(),
+    mimeType: text('mime_type').notNull(),
+    blobPath: text('blob_path').notNull(),
+    blobSize: integer('blob_size').notNull(),
+    blobHash: text('blob_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('page_contents_page_kind_mime_unique').on(t.pageId, t.kind, t.mimeType),
+    index('idx_page_contents_page').on(t.pageId),
+    index('idx_page_contents_hash').on(t.blobHash),
+  ],
+);
 
 export const pageLinks = pgTable(
   'page_links',

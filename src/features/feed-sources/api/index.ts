@@ -17,3 +17,8 @@ export {
 } from './queue';
 export { extractFeedLinks } from '@/crawl';
 export { ensureFeedDiscoveryWorker, shutdownFeedDiscoveryWorker } from './worker';
+export {
+  discoverAndEmitPages,
+  insertFeedLinks,
+  persistFeedDiscovery,
+} from './services/feed-service';

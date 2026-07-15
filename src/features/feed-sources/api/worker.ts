@@ -12,14 +12,9 @@ import { getDefaultDb } from '@/features/feed-sources/api/queries';
 import { canonicalizeUrl } from '@/lib/url';
 import { getRedisConnection } from '@/redis/client';
 
-import {
-  insertDiscoveredPages,
-  insertFeeds,
-  markFeedFailed,
-  markFeedScanned,
-  markFeedScanning,
-} from './queries';
+import { markFeedFailed, markFeedScanning } from './queries';
 import { FEED_DISCOVERY_QUEUE, type FeedDiscoveryJobData } from './queue';
+import { persistFeedDiscovery } from './services/feed-service';
 
 const WORKER_CONCURRENCY = Number(process.env.FEED_DISCOVERY_WORKER_CONCURRENCY) || 4;
 
@@ -33,11 +28,6 @@ function getFetcher(): CrawlerAdapter {
 
 function passFilter(url: string): boolean {
   return isAllowedByRobots(url) && isNotNoindex(url);
-}
-
-interface FeedDiscoveryResult {
-  pagesAdded: number;
-  feedsAdded: number;
 }
 
 interface ExtractedFeeds {
@@ -69,26 +59,9 @@ async function fetchAndExtract(url: string): Promise<ExtractedFeeds> {
   };
 }
 
-async function persist(
-  db: ReturnType<typeof getDefaultDb>,
-  feedId: string,
-  extracted: ExtractedFeeds,
-): Promise<FeedDiscoveryResult> {
-  const t2 = Date.now();
-  const [pagesAdded, feedsAdded] = await Promise.all([
-    insertDiscoveredPages(db, extracted.links),
-    insertFeeds(db, extracted.feeds),
-  ]);
-  console.warn(
-    `[feed-discovery] saved    ${Date.now() - t2}ms pages=+${pagesAdded} feeds=+${feedsAdded} url`,
-  );
-  await markFeedScanned(db, feedId);
-  return { pagesAdded, feedsAdded };
-}
-
 async function processJob(
   job: Job<FeedDiscoveryJobData>,
-): Promise<FeedDiscoveryResult & { feedId: string }> {
+): Promise<{ pagesAdded: number; feedsAdded: number; feedId: string }> {
   const { feedId: fid, url } = job.data;
   const started = Date.now();
   const db = getDefaultDb();
@@ -96,7 +69,11 @@ async function processJob(
   await markFeedScanning(db, fid);
   try {
     const extracted = await fetchAndExtract(url);
-    const result = await persist(db, fid, extracted);
+    const t2 = Date.now();
+    const result = await persistFeedDiscovery(db, fid, extracted);
+    console.warn(
+      `[feed-discovery] saved    ${Date.now() - t2}ms pages=+${result.pagesAdded} feeds=+${result.feedsAdded} url`,
+    );
     const ms = Date.now() - started;
     console.warn(`[feed-discovery] done   ${ms}ms url=${url}`);
     return { feedId: fid, ...result };

@@ -5,8 +5,8 @@ import { findPageExtractor } from '../extractors/factory';
 import { createSilentJSDOM } from '../jsdom';
 import type { CrawlResponse } from '../types';
 import type { CrawlerAdapter } from './adapter';
+import { BrowserlessContentAdapter } from './browserless-content';
 import { FetchCrawlerAdapter } from './fetch';
-import { PlaywrightCrawlerAdapter } from './playwright';
 
 const DOMAIN_BROWSER_TTL_MS = 60 * 60 * 1000;
 
@@ -19,12 +19,12 @@ export class CompositeCrawlerAdapter implements CrawlerAdapter {
   readonly name = 'composite';
 
   private readonly fetcher: FetchCrawlerAdapter;
-  private readonly browser: PlaywrightCrawlerAdapter;
+  private readonly browser: BrowserlessContentAdapter;
   private readonly browserDomainCache = new Map<string, number>();
 
-  constructor(opts: { timeoutSecs?: number } = {}) {
+  constructor(_opts: { timeoutSecs?: number } = {}) {
     this.fetcher = new FetchCrawlerAdapter();
-    this.browser = new PlaywrightCrawlerAdapter(opts);
+    this.browser = new BrowserlessContentAdapter();
   }
 
   async crawl(url: string): Promise<CrawlResponse> {

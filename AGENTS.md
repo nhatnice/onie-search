@@ -46,7 +46,8 @@ src/
 │       ├── api/           # Server-side
 │       │   ├── functions.ts   # createServerFn wrappers (client-safe RPC bridge)
 │       │   ├── mutations.ts   # Mutations
-│       │   ├── queries.ts     # DB queries
+│       │   ├── queries.ts     # DB queries (pure — không side-effect, không emit event)
+│       │   ├── services/      # Application services — orchestrate queries + side-effects (Inngest emit, R2 upload, ...)
 │       │   └── index.ts       # API barrel
 │       ├── components/    # UI components render-only (auth-layout)
 │       ├── schemas/       # zod schemas (client-safe)
@@ -73,9 +74,21 @@ src/
 │   └── index.ts
 │
 ├── crawl/                 # Crawl infrastructure (top-level) — HTTP fetcher + content parser
-│   ├── adapters/          # CrawlerAdapter implementations (playwright, ...)
+│   ├── adapters/          # CrawlerAdapter implementations (playwright, browserless-content, ...)
 │   ├── extractors/        # Content extractors (html, sitemap, ...)
 │   ├── types.ts
+│   └── index.ts
+│
+├── storage/               # Object Storage infrastructure (top-level) — R2 (S3-compatible)
+│   ├── adapter.ts         # ObjectStorage interface + UploadResult
+│   ├── r2.ts              # R2 adapter (@aws-sdk/client-s3)
+│   ├── client.ts          # S3Client singleton (R2 endpoint)
+│   ├── dedup.ts           # uploadWithDedup() — SHA-256 check, return existing path nếu trùng
+│   └── index.ts
+│
+├── inngest/               # Inngest event-driven infrastructure (top-level)
+│   ├── client.ts          # Inngest singleton + PortalEvents type
+│   ├── functions/         # inngest.createFunction handlers (page-crawl, ...)
 │   └── index.ts
 │
 ├── runtime/               # Nitro runtime code (top-level) — server-side glue
@@ -100,6 +113,36 @@ Top-level chia 3 nhóm, **một chiều** từ dưới lên:
 | **Utilities**      | `lib/`                                | Pure functions, helpers. Không side-effect, không biết infrastructure. | —                      |
 
 **Quy tắc vàng**: Infrastructure KHÔNG import features/routes. Features KHÔNG import routes. Lib KHÔNG import bất kỳ thứ gì ở trên.
+
+### Service layer (trong features)
+
+Mỗi feature có 2 tầng trong `api/`:
+
+| Tầng         | Vai trò                                                                                                                                                                                 | Side-effect |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `queries.ts` | DB read/write (pure) — insert, update, select. Trả về data, không emit event, không gọi R2/Inngest.                                                                                     | KHÔNG       |
+| `services/`  | Orchestrate queries + side-effects (Inngest emit, R2 upload, multi-step workflows). Caller (worker, task, Inngest function) gọi service, không gọi query trực tiếp khi cần side-effect. | CÓ          |
+
+Quy tắc:
+
+- `queries.ts` nhận `db: DbOrTx` qua param (testable, transaction-composable).
+- Service nhận `db: DbOrTx` qua param, gọi queries, rồi emit event / upload R2 **sau khi DB commit**.
+- Event emit trong service là fire-and-forget (`void inngest.send(...).catch(log)`) — DB write đã commit, Inngest outage không abort.
+- Cross-feature: feature A cần ghi vào table của feature B → gọi service của B, KHÔNG import queries/schema của B trực tiếp. VD: `pages` cần insert feeds → gọi `insertFeedLinks` từ `feed-sources/api/services/feed-service`.
+
+### Object Storage
+
+- `src/storage/` — R2 (S3-compatible) abstraction. `ObjectStorage` interface + R2 adapter (`@aws-sdk/client-s3`).
+- Upload có dedup: SHA-256 hash check against `page_contents.blob_hash` qua `uploadWithDedup()`. Duplicate → return existing `blobPath` (không re-upload).
+- **Lưu relative-path trong DB** (`page_contents.blob_path` — vd `pages/<id>/page/text.html`), **build full URL runtime** qua `R2_PUBLIC_URL` env. Không lưu full URL (env-agnostic, dễ migrate bucket/domain).
+- Env: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
+
+### Inngest
+
+- `src/inngest/` — event-driven infra. `Inngest` client + step functions.
+- Serve endpoint: `src/runtime/routes/inngest.ts` — Nitro route mount tại `/api/inngest` qua `inngest/nitro` adapter.
+- Local dev: `pnpm inngest:dev` chạy Inngest dev server trỏ về `http://localhost:3000/api/inngest`.
+- Inngest tự lưu event log — KHÔNG cần table events riêng.
 
 ### Export
 

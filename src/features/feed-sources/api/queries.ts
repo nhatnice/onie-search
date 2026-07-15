@@ -72,19 +72,21 @@ export async function markFeedFailed(db: DbOrTx, id: string): Promise<void> {
   await db.update(feeds).set({ status: 'failed', updatedAt: new Date() }).where(eq(feeds.id, id));
 }
 
-export async function insertDiscoveredPages(db: DbOrTx, urls: readonly string[]): Promise<number> {
-  if (urls.length === 0) return 0;
+export async function insertDiscoveredPages(
+  db: DbOrTx,
+  urls: readonly string[],
+): Promise<Array<{ id: string; url: string }>> {
+  if (urls.length === 0) return [];
   const rows = urls.map((url) => ({
     id: pageId(url),
     url,
     status: 'pending' as const,
   }));
-  const inserted = await db
+  return db
     .insert(pages)
     .values(rows)
     .onConflictDoNothing()
-    .returning({ id: pages.id });
-  return inserted.length;
+    .returning({ id: pages.id, url: pages.url });
 }
 
 export function getDefaultDb(): Db {

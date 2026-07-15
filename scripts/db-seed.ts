@@ -1,5 +1,5 @@
 import { db } from '@/db/client';
-import { insertSeedPages } from '@/features/pages/api/queries';
+import { seedPages } from '@/features/pages/api/services/page-service';
 import { env } from '@/lib/env';
 
 function parseSeedUrls(raw: string): string[] {
@@ -15,7 +15,7 @@ async function main() {
     console.log('No SEED_URLS set — nothing to seed');
     return;
   }
-  const inserted = await insertSeedPages(db, urls);
+  const { inserted } = await seedPages(db, urls);
   console.log(`Seeded ${inserted} new pages (of ${urls.length} attempted)`);
   process.exit(0);
 }

@@ -1,7 +1,7 @@
 import { defineTask } from 'nitro/task';
 
 import { db } from '@/db/client';
-import { insertSeedPages } from '@/features/pages/api/queries';
+import { seedPages } from '@/features/pages/api/services/page-service';
 import { env } from '@/lib/env';
 
 function parseSeedUrls(raw: string): string[] {
@@ -21,7 +21,7 @@ export default defineTask({
     if (urls.length === 0) {
       return { result: 'No SEED_URLS set — nothing to seed' };
     }
-    const inserted = await insertSeedPages(db, urls);
+    const { inserted } = await seedPages(db, urls);
     return { result: `Seeded ${inserted} new pages (of ${urls.length} attempted)` };
   },
 });

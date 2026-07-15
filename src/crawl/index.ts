@@ -11,6 +11,7 @@ export type {
 } from './extractors/types';
 
 export { PlaywrightCrawlerAdapter } from './adapters/playwright';
+export { BrowserlessContentAdapter } from './adapters/browserless-content';
 export { FetchCrawlerAdapter } from './adapters/fetch';
 export { CompositeCrawlerAdapter } from './adapters/composite';
 export { requiresJsRender } from './detect-js-required';

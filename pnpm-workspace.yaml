@@ -1,6 +1,7 @@
 allowBuilds:
   esbuild: true
   msgpackr-extract: true
+  protobufjs: true
 onlyBuiltDependencies:
   - esbuild
   - msgpackr-extract

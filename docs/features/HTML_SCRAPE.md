@@ -37,8 +37,7 @@ page_contents {
 
 ### 4. Event Driven Infra
 
-- Setup infra cho event driven.
-- Lưu event log vào Postgres event table.
+- Setup infra cho event driven (Dùng Inngest).
 
 ### 2. Event-driven
 

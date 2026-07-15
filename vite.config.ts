@@ -86,7 +86,7 @@ export default defineConfig({
         },
       },
       scheduledTasks: {
-        '*/5 * * * *': ['crawl:enqueue', 'feed:enqueue'],
+        '*/5 * * * *': ['feed:enqueue'],
       },
       rollupConfig: {
         external: ['playwright', 'playwright-core', 'jsdom'],
@@ -104,24 +104,15 @@ export default defineConfig({
           handler: resolve(rootDir, 'src/runtime/tasks/db-seed.ts'),
           description: 'Insert seed URLs from SEED_URLS env var (comma-separated) into pages table',
         },
-        'crawl:enqueue': {
-          handler: resolve(rootDir, 'src/runtime/tasks/crawl-enqueue.ts'),
-          description: 'Scan pending pages and push to BullMQ',
-        },
         'feed:enqueue': {
           handler: resolve(rootDir, 'src/runtime/tasks/feed-enqueue.ts'),
           description: 'Scan feeds due for scanning and push to feed-discovery queue',
         },
-        'feed:discover-from-pages': {
-          handler: resolve(rootDir, 'src/runtime/tasks/feed-discover-from-pages.ts'),
-          description:
-            'Extract feed links (rss/atom/sitemap/json_feed) from crawled pages raw_html',
-        },
       },
-      plugins: [
-        resolve(rootDir, 'src/runtime/plugins/page-crawl-worker.ts'),
-        resolve(rootDir, 'src/runtime/plugins/feed-discovery-worker.ts'),
-      ],
+      routes: {
+        '/api/inngest': resolve(rootDir, 'src/runtime/routes/inngest.ts'),
+      },
+      plugins: [resolve(rootDir, 'src/runtime/plugins/feed-discovery-worker.ts')],
     }),
     stylex.vite({
       dev: process.env.NODE_ENV === 'development',

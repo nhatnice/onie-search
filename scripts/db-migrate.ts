@@ -29,8 +29,17 @@ async function main() {
     // Trỏ tới thư mục chứa file .sql vừa generate lúc nãy
     await migrate(db, { migrationsFolder: './drizzle' });
     console.log('✅ Migration thành công rực rỡ!');
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Lỗi chi tiết đây anh ơi:', error);
+    if (error.cause) {
+      console.error('🔍 Gốc rễ lỗi (cause):', error.cause);
+    }
+    if (error.code) {
+      console.error('🔍 Mã lỗi SQL (code):', error.code);
+    }
+    if (error.detail) {
+      console.error('🔍 Chi tiết lỗi (detail):', error.detail);
+    }
   } finally {
     await client.end();
   }

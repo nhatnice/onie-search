@@ -11,7 +11,7 @@ function buildBrowserlessContentEndpoint(): string {
   const url = new URL(env.browserlessUrl);
   if (url.protocol === 'wss:') url.protocol = 'https:';
   else if (url.protocol === 'ws:') url.protocol = 'http:';
-  url.pathname = '/chromium/content';
+  url.pathname = '/content';
   url.searchParams.set('token', env.browserlessToken);
   return url.toString();
 }

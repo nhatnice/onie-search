@@ -8,7 +8,7 @@ import {
   type CrawlerAdapter,
 } from '@/crawl';
 import type { DbOrTx } from '@/db/types';
-import { eventEmitter, PAGE_CONTENT_CREATED, PAGE_CREATED, PAGES_CREATED } from '@/events/emitter';
+import { eventEmitter, PAGE_CONTENT_CREATED, PAGES_CREATED } from '@/events/emitter';
 import { insertFeedLinks } from '@/features/feed-sources/api/services/feed-service';
 import { R2ObjectStorage, uploadWithDedup, type ObjectStorage } from '@/storage';
 
@@ -108,8 +108,6 @@ export async function crawlPage(db: DbOrTx, input: PageCrawlInput): Promise<Page
     blob: upload,
   });
 
-  // Emit event via eventEmitter instead of step.sendEvent
-  eventEmitter.emit(PAGE_CREATED, { pageId: pid, url });
   if (saveResult.newPages.length > 0) {
     await eventEmitter.emitAsync(PAGES_CREATED, {
       pages: saveResult.newPages.map((p) => ({ pageId: p.id, url: p.url })),

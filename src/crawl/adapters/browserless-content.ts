@@ -4,7 +4,13 @@ import type { CrawlResponse } from '../types';
 import type { CrawlerAdapter } from './adapter';
 
 function buildBrowserlessContentEndpoint(): string {
+  // Browserless exposes two transports: `wss://` for Puppeteer/CDP sessions
+  // and `https://` for the REST content/scrape API. The Content endpoint is
+  // HTTP-only — `new URL('wss://...')` keeps the scheme, undici rejects `wss:`
+  // with `fetch failed: unknown scheme`. Normalize before constructing.
   const url = new URL(env.browserlessUrl);
+  if (url.protocol === 'wss:') url.protocol = 'https:';
+  else if (url.protocol === 'ws:') url.protocol = 'http:';
   url.pathname = '/chromium/content';
   url.searchParams.set('token', env.browserlessToken);
   return url.toString();

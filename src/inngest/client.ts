@@ -7,6 +7,5 @@ export const inngest = new Inngest({
   eventKey: env.inngestEventKey,
   signingKey: env.inngestSigningKey,
   isDev: process.env.NODE_ENV !== 'production',
-  // ponytail: no per-event TS generics — Inngest's send() accepts any literal string,
-  // so PortalEvents typing gave false safety. Single source of truth is events.ts.
+  // checkpointing: { maxRuntime: '120s' },
 });

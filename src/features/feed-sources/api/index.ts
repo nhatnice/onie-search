@@ -10,8 +10,4 @@ export {
   markFeedScanning,
 } from './queries';
 export { extractFeedLinks } from '@/crawl';
-export {
-  discoverAndEmitPages,
-  insertFeedLinks,
-  persistFeedDiscovery,
-} from './services/feed-service';
+export { insertFeedLinks, persistFeedDiscovery } from './services/feed-service';

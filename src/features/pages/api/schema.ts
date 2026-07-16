@@ -2,18 +2,29 @@ import {
   index,
   integer,
   jsonb,
-  pgEnum,
+  pgSchema,
   pgTable,
   text,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
 
-export const pageStatusEnum = pgEnum('page_status', ['pending', 'crawling', 'crawled', 'failed']);
+const crawlerSchema = pgSchema('crawler');
 
-export const linkTypeEnum = pgEnum('link_type', ['sitemap', 'internal', 'outbound']);
+export const pageStatusEnum = crawlerSchema.enum('page_status', [
+  'pending',
+  'crawling',
+  'crawled',
+  'failed',
+]);
 
-export const pageContentKindEnum = pgEnum('page_content_kind', ['page', 'media', 'file']);
+export const linkTypeEnum = crawlerSchema.enum('link_type', ['sitemap', 'internal', 'outbound']);
+
+export const pageContentKindEnum = crawlerSchema.enum('page_content_kind', [
+  'page',
+  'media',
+  'file',
+]);
 
 export const pages = pgTable(
   'pages',

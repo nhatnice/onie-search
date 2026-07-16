@@ -38,18 +38,9 @@ interface ExtractedFeeds {
 }
 
 async function fetchAndExtract(url: string): Promise<ExtractedFeeds> {
-  const t0 = Date.now();
   const response = await getFetcher().crawl(url);
-  console.warn(
-    `[feed-discovery] fetched ${Date.now() - t0}ms status=${response.statusCode} type=${response.contentType} url=${url}`,
-  );
-
-  const t1 = Date.now();
-  const result = findFeedExtractor(response.contentType).extractFeed(response);
-  console.warn(
-    `[feed-discovery] extracted ${Date.now() - t1}ms links=${result.links.length} feeds=${result.feeds.length} url=${url}`,
-  );
-
+  const bodyText = response.body.toString('utf-8');
+  const result = findFeedExtractor(response.contentType, bodyText).extractFeed(response);
   return {
     links: result.links
       .map((l) => canonicalizeUrl(l.url))
@@ -66,20 +57,12 @@ export const feedDiscoveryDispatcher = inngest.createFunction(
     id: FEED_DISCOVERY_DISPATCHER_FUNCTION_ID,
     triggers: [{ cron: '*/5 * * * *' }],
     retries: 3,
-    // Backpressure: nếu run trước chưa xong, skip cron tick mới. Thay thế
-    // `getBacklog() >= 200 -> skip` của BullMQ. Excess cron drops nhưng feeds
-    // status=pending/failed sẽ được pickup ở tick sau (lastScannedAt chưa update).
     singleton: { mode: 'skip' },
   },
   async ({ step }) => {
     const due = await step.run('get-feeds-due', () => getFeedsToScan(db, BATCH_SIZE));
-    if (due.length === 0) {
-      console.warn('[feed-discovery] no feeds due');
-      return { result: 'No feeds due' };
-    }
+    if (due.length === 0) return { result: 'No feeds due' };
 
-    // Fan-out: 1 event per feed -> 1 child run per feed. step.sendEvent
-    // durable + checkpointed, khác inngest.send fire-and-forget.
     await step.sendEvent(
       'dispatch-feeds',
       due.map((f) => ({
@@ -113,36 +96,31 @@ export const feedDiscoveryWorker = inngest.createFunction(
     id: FEED_DISCOVERY_WORKER_FUNCTION_ID,
     triggers: [{ event: FEED_DISCOVERY_REQUESTED }],
     retries: 3,
-    // Global concurrency cap. Excess events được Inngest queue (không drop).
     concurrency: { limit: WORKER_CONCURRENCY },
-    // Dedup: mỗi feedId chỉ xử lý 1 lần (24h window). Thay jobId của BullMQ.
     idempotency: 'event.data.feedId',
   },
   async ({ event, step }) => {
     if (!isFeedDiscoveryRequestedData(event.data)) {
       throw new Error(`Invalid feed.discovery.requested payload: ${JSON.stringify(event.data)}`);
     }
-    const { feedId, url, type } = event.data;
+    const { feedId, url } = event.data;
     const started = Date.now();
-    console.warn(`[feed-discovery] start  url=${url} type=${type}`);
 
     await step.run('mark-scanning', () => markFeedScanning(db, feedId));
 
     try {
-      const extracted = await step.run('fetch-and-extract', () => fetchAndExtract(url));
-      const t2 = Date.now();
-      const result = await step.run('persist', () =>
-        persistFeedDiscovery(db, feedId, extracted, step),
-      );
-      console.warn(
-        `[feed-discovery] saved    ${Date.now() - t2}ms pages=+${result.pagesAdded} feeds=+${result.feedsAdded} url=${url}`,
-      );
+      const result = await step.run('fetch-extract-persist', async () => {
+        const extracted = await fetchAndExtract(url);
+        return persistFeedDiscovery(db, feedId, extracted);
+      });
       const ms = Date.now() - started;
-      console.warn(`[feed-discovery] done   ${ms}ms url=${url}`);
+      console.warn(
+        `[feed-discovery] done ${ms}ms pages=+${result.pagesAdded} feeds=+${result.feedsAdded} url=${url}`,
+      );
       return { feedId, ...result };
     } catch (err) {
       await step.run('mark-failed', () => markFeedFailed(db, feedId).catch(() => undefined));
-      console.error(`[feed-discovery] fail   url=${url}`, err);
+      console.error(`[feed-discovery] fail url=${url}`, err);
       throw err;
     }
   },

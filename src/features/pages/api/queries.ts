@@ -107,6 +107,16 @@ export async function saveCrawlResult(db: DbOrTx, args: SaveCrawlArgs): Promise<
     status: 'pending' as const,
   }));
 
+  // Concurrent page-crawl workers each open a transaction that bulk-upserts
+  // pages by URL. The unique index on `pages.url` is locked in row order, and
+  // extractors emit links in document order — different pages = different
+  // lock sequences = classic deadlock cycle
+  // (`Process A waits on X held by B; B waits on Y held by A`).
+  // Sort by `id` so every transaction acquires index locks in the same
+  // deterministic order → no cycle. Same for `page_links` (PK on `id`).
+  edges.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  targetPageRows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
   return db.transaction(async (tx) => {
     await markCrawling(tx, pid, now);
     await upsertMetadata(tx, pid, metaSet);

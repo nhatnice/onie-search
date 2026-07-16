@@ -10,7 +10,7 @@ function optional(name: string, fallback = ''): string {
 
 export const env = {
   databaseUrl: required('DATABASE_URL'),
-  seedUrls: optional('SEED_URLS', ''),
+  seedFeeds: optional('SEED_FEEDS', ''),
   browserlessUrl: required('BROWSERLESS_URL'),
   browserlessToken: required('BROWSERLESS_TOKEN'),
   browserlessTimeoutMs: optional('BROWSERLESS_TIMEOUT_MS', '1800000'),

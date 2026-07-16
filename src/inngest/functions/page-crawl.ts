@@ -35,6 +35,10 @@ export const pageCrawlFunction = inngest.createFunction(
     if (!isPageCrawlInput(event.data)) {
       throw new Error(`Invalid page.created payload: ${JSON.stringify(event.data)}`);
     }
-    return crawlPage(db, event.data, step);
+    const started = Date.now();
+    const result = await crawlPage(db, event.data, step);
+    const ms = Date.now() - started;
+    console.warn(`[page-crawl] done ${ms}ms status=${result.status} url=${event.data.url}`);
+    return result;
   },
 );

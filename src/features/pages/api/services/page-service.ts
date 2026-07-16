@@ -15,13 +15,7 @@ import { PAGE_CONTENT_CREATED, PAGE_CREATED, type PageCreatedData } from '@/inng
 import { R2ObjectStorage, uploadWithDedup, type ObjectStorage } from '@/storage';
 
 import { extractPage } from '../extract';
-import {
-  insertSeedPages,
-  markCrawled,
-  markFailed,
-  saveCrawlResult,
-  type SaveCrawlArgs,
-} from '../queries';
+import { insertSeedPages, markCrawled, markFailed, saveCrawlResult } from '../queries';
 import { pages } from '../schema';
 import type { CrawlableLink } from '../types';
 
@@ -67,9 +61,7 @@ export async function crawlPage(
   let response: { statusCode: number; contentType: string; url: string; body: string };
   try {
     response = await step.run('crawl', async () => {
-      const t0 = Date.now();
       const r = await getCrawler().crawl(url);
-      console.warn(`[page-crawl] crawled ${Date.now() - t0}ms status=${r.statusCode} url=${url}`);
       return {
         statusCode: r.statusCode,
         contentType: r.contentType,
@@ -105,9 +97,7 @@ export async function crawlPage(
     };
     const extractor = findPageExtractor(r.contentType);
     const result = extractor.extractPage(r);
-    const t1 = Date.now();
     const page = extractPage(result.document, result.rawHtml, r.url);
-    console.warn(`[page-crawl] parsed   ${Date.now() - t1}ms url=${url}`);
     const allLinks: CrawlableLink[] = [
       ...result.links,
       ...result.feeds
@@ -125,28 +115,22 @@ export async function crawlPage(
   });
 
   const upload = await step.run('upload-r2', async () => {
-    const t0 = Date.now();
-    const result = await uploadWithDedup(
+    return uploadWithDedup(
       getStorage(),
       db,
       `pages/${pid}/page/text.html`,
       Buffer.from(extracted.page.rawHtml, 'utf-8'),
       'text/html',
     );
-    console.warn(`[page-crawl] uploaded ${Date.now() - t0}ms path=${result.path} url=${url}`);
-    return result;
   });
 
   const saveResult = await step.run('save-page-contents', async () => {
-    const t0 = Date.now();
-    const args: SaveCrawlArgs = {
+    const out = await saveCrawlResult(db, {
       pid,
       extracted: extracted.page,
       links: extracted.links,
       blob: upload,
-    };
-    const out = await saveCrawlResult(db, args);
-    console.warn(`[page-crawl] saved    ${Date.now() - t0}ms url=${url}`);
+    });
     return { contentId: out.contentId, newPages: out.newPages };
   });
 

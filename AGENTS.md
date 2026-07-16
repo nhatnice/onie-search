@@ -140,6 +140,24 @@ Quy tắc:
 - Serve endpoint: `src/runtime/routes/inngest.ts` — Nitro route mount tại `/api/inngest` qua `inngest/nitro` adapter.
 - Local dev: `pnpm inngest:dev` chạy Inngest dev server trỏ về `http://localhost:3000/api/inngest`.
 - Inngest tự lưu event log — KHÔNG cần table events riêng.
+- **Parallel steps pattern** (`Promise.all` + `step.run`): mỗi branch của `Promise.all` PHẢI là 1 `step.run` call — KHÔNG trộn `step.run` với plain async function. Mixing trigger `NESTING_STEPS` warning (và ESLint rule `@inngest/no-nested-steps` sẽ flag). Bug thực tế ở `feed-service.ts:persistFeedDiscovery`: `Promise.all([discoverAndEmitPages(step), insertFeedLinks(plain)])` → warning. Fix: `Promise.all([step.run('a', ...), step.run('b', ...)])` + `step.sendEvent` chạy _sau_ Promise.all (sequential, vì sendEvent cần kết quả các step trước). Source: Inngest docs `step-parallelism` + `@inngest/no-nested-steps` rule.
+- **Nested step pitfall**: KHÔNG được gọi `step.*` bên trong callback của `step.run(...)` (kể cả qua wrapper function trung gian). Nếu cần sequence các step, extract thành separate function rồi gọi ngoài `step.run`.
+- **Step output size limit (4 MiB) + checkpointing (10s maxRuntime default)**: `step.run(name, fn)` checkpoint `fn`'s return value. Inngest cap 4MiB per step (`inngest.com/docs/usage-limits`). Bài học từ `feed-discovery.ts` worker — đã thử 3 cách đều fail, fix cuối cùng mới đúng:
+  1. ❌ `step.run('fetch-and-extract', () => fetchAndExtract(url))` — step output = 50k URLs (~10MB) → `async checkpoint rejected: step output too large` → Inngest reject checkpoint → function fail sau 3 retries → feed stuck `scanning` vĩnh viễn.
+  2. ❌ `fetchAndExtract` plain async (không step.run) — plain async chạy giữa các step boundary → checkpointing engine `DefaultMaxRuntime.serve = 1e4` (10s) fire → engine cố checkpoint nhưng không có step đang chạy → response treo → "Your server reset the connection" (Inngest docs: "Non-deterministic logic must be placed within a `step.run()` call").
+  3. ✅ **Gộp fetch + extract + insert + emit + mark-scanned vào 1 `step.run` duy nhất** — 50k URLs nằm trong step memory (không cross boundary → không bị 4MiB), step output chỉ return `{pagesAdded, feedsAdded}` (~50 bytes), `inngest.send()` (raw client, không phải step tool → không vi phạm nested-step). Nếu step > 10s maxRuntime → engine interrupt + retry → re-fetch (idempotent) + re-insert (onConflictDoNothing).
+- **Fan-out events (5000/call cap)**: `inngest.send()` / `step.sendEvent()` max 5000 events/call. Sitemap 50k URLs → batch 10 lần (5000/lần). Batched tại function top-level (không trong step) để tránh nested step + 1000 steps/function limit.
+
+- **Business logic thuộc service, KHÔNG thuộc Inngest function file.** Inngest function file (`src/inngest/functions/*.ts`) chỉ orchestrate step boundaries + retry logic. Business logic (fetch, extract, queries, event emit) phải nằm trong `features/*/api/` (queries + services). Bài học từ bug `feed-discovery.ts`:
+  - **Anti-pattern đã thử**: gom logic vào Inngest function: `step.run('fetch-and-extract', () => fetchAndExtract(url))` → step output = 50k URLs → vượt 4MiB → checkpoint rejected. Hoặc plain async giữa các step → checkpointing engine không checkpoint được → connection reset.
+  - **Anti-pattern khác**: `persistFeedDiscovery` ban đầu là service nhưng lại nhận `step` param và gọi `step.run` bên trong → coupling Inngest + service + nested step vi phạm.
+  - **Pattern đúng**: Service (`features/feed-sources/api/services/feed-service.ts:persistFeedDiscovery`) là **plain async** — gọi queries trực tiếp, emit event qua `inngest.send()` (raw client, không phải step tool). Inngest function file chỉ wrap toàn bộ logic trong 1 `step.run` duy nhất (tạo 1 step boundary duy nhất cho cả fetch+extract+insert+emit+mark-scanned) → 50k URLs nằm trong step memory (không cross boundary) → step output chỉ là count (50 bytes, dưới 4MiB) → checkpoint OK, retry idempotent (`onConflictDoNothing`).
+  - **Rule**: non-deterministic code (HTTP fetch, DB write) PHẢI nằm trong service layer, KHÔNG inline trong `inngest/functions/*.ts`. Inngest function chỉ wrap service call trong `step.run`. Service nhận `db` qua param, KHÔNG nhận `step` — service "thuần" (pure business logic) có thể test/unit mà không cần Inngest context.
+  - **Source**: Inngest docs `how-functions-are-executed` — "Non-deterministic logic, such as database or API calls, must be placed within a `step.run()` call" + `step.run` ở function layer (không phải service layer) + service layer plain async để tránh nested `step.*`.
+
+### DB / Drizzle
+
+- `src/db/client.ts` — Drizzle client init. Pool config KHÔNG dùng `pool.on('connect')` event để `SET search_path` (fire-and-forget → race với query đầu tiên trên cùng client → pg@8 DeprecationWarning, pg@9 sẽ throw "client is already executing a query"). Dùng `options: '-c search_path=...'` connection parameter (libpq GUC at startup, 0 query, no race) — đây là official node-postgres approach. Source: node-postgres `pool.mdx` `onConnect` config example (awaited) vs `pool.on('connect')` event (fire-and-forget).
 
 ### Export
 
@@ -197,7 +215,7 @@ export function findFeedExtractor(ct: string): FeedExtractor {
 
 **Dùng khi:** Factory pattern với selection dựa trên predicate (content-type, file extension, format...), ≤ 5 strategies. **KHÔNG dùng khi:** 1-2 strategy (if/else trực tiếp đơn giản hơn — YAGNI), selection cần context phức tạp (không chỉ 1 predicate), strategy có side-effect/order-dependent phức tạp (tường minh dễ debug hơn).
 
-**Case thực tế:** `src/crawl/extractors/factory.ts` — 5 extractors (sitemap, html, rss, atom, json-feed) route theo content-type, 2 factory functions (page + feed).
+**Case thực tế:** `src/crawl/extractors/factory.ts` — 5 extractors (sitemap, html, rss, atom, json-feed) route theo content-type, 2 factory functions (page + feed). `findFeedExtractor` còn sniff root element (`<rss>` / `<feed>` / `<urlset>` / `<sitemapindex>`) khi content-type generic — vì nhiều server serve RSS/Atom với `application/xml` thay vì `+rss`/`+atom`. Fallback `noopFeedExtractor` (null object pattern) cho content không match gì (HTML 404 page, binary) — tránh throw.
 
 #### Extract step functions — khi 1 hàm gộp nhiều trách nhiệm (SRP violation)
 
@@ -321,6 +339,34 @@ src/crawl/policies/noindex.ts   # ✅ crawl policy, infrastructure layer
 5. **Khi lỗi xảy ra**: tìm root cause, KHÔNG workaround. Workaround = technical debt + lỗi lặp lại.
 6. **Verify end-to-end** sau khi setup — chạy command thực tế, không chỉ `typecheck` pass rồi cho là xong.
 
+### Stack incompatibility → escalation ladder (KHÔNG skip)
+
+Khi framework A's adapter không tương thích với framework B version X (vd: Inngest `nitro` adapter vs Nitro 3 + h3 v2), **KHÔNG** viết custom adapter/workaround trước. Đi theo trình tự:
+
+1. **Check version mới hơn** — `pnpm info <pkg> versions` (stable + beta + canary). Latest có thể đã fix.
+2. **Check GitHub issues/PRs** — maintainer/committer đã confirm fix chưa, có PR pending release, có workaround community chưa.
+3. **Check `pnpm.overrides`** — alias version subtree để ép compatibility. VD: `"inngest": { "h3": "^1" }` nếu inngest subtree có thể dùng h3 v1 cùng h3 v2 ở root.
+4. **Check downgrading framework phụ thuộc** — Nitro 2.x dùng h3 v1 (compatible), TanStack Start có hỗ trợ Nitro 2 không?
+5. **Hỏi user / escalate** — nếu 1-4 đều trade-off, hỏi trước khi quyết. **KHÔNG tự chọn path dễ nhất.**
+6. **LAST RESORT** — custom adapter/workaround. Phải có lý do chính đáng + comment rõ "tại sao phải custom" + issue tracker link.
+
+**Anti-patterns khi thấy stack incompatibility:**
+
+- ❌ Viết custom adapter ngay, "vì chỉ cần 40 dòng"
+- ❌ Mở rộng scope (refactor nhiều file) để workaround thay vì escalate
+- ❌ Copy-paste official adapter và sửa từng hàm
+- ❌ Quên check `pnpm overrides` (đôi khi đó là đáp án 1 dòng)
+
+**Tại sao custom là SAI default:**
+
+- Maintenance debt khi upstream API đổi
+- Type safety thường bị suy yếu (generic `(...args: any[]) => Promise<any>`)
+- Future features (streaming, realtime, ...) bị miss
+- Code không ai ngoài em biết → on-call nightmare
+- Custom handler dễ silently break khi upgrade
+
+**Lesson từ bug thực tế:** Inngest 4.12.1 nitro adapter import h3 v1's `send` export, fail với h3 v2. Em đã viết custom h3 v2 adapter (~40 dòng) thay vì check 1-5 trước. May mắn user bắt được.
+
 ### Nitro Integration (vite.config.ts)
 
 Nitro được tích hợp qua `nitro()` plugin từ `nitro/vite`, **KHÔNG** phải top-level object.
@@ -384,6 +430,21 @@ Có 2 cách chạy tasks:
    - Phù hợp: webhook từ external service.
 
 Scheduled tasks (cron) dùng Inngest `triggers: [{ cron: '...' }]` trong function definition — Inngest chạy qua platform, không phụ thuộc Nitro dev server.
+
+### Schema & Migration Workflow
+
+Khi thay đổi DB schema (thêm/sửa table, cột, enum, index, reference):
+
+1. **Sửa schema source** — `src/features/*/api/schema.ts` (feature tự trị), re-export qua `src/db/schema.ts`.
+2. **Generate migration** — `pnpm db:generate` (drizzle-kit). Tự sinh:
+   - `drizzle/XXXX_<codename>.sql` — migration SQL (codename tự sinh, KHÔNG tự đặt tên).
+   - `drizzle/meta/XXXX_snapshot.json` — snapshot mới (id UUID + prevId trỏ về snapshot trước).
+   - Append entry vào `drizzle/meta/_journal.json` (timestamp `when` = `Date.now()`, tự tăng).
+3. **Review migration SQL** — đặc biệt DROP/ALTER (destructive? cần data migration?).
+4. **Apply** — `pnpm db:migrate`.
+5. **Verify** — check `drizzle.__drizzle_migrations` count + columns/tables mới.
+
+**KHÔNG tự viết file `.sql` migration, KHÔNG tự edit `drizzle/meta/_journal.json` hay `*_snapshot.json` bằng tay.** Drizzle-kit quản lý timestamp + UUID chain — tay làm sẽ break chain và skip migration (xem bug 0003/0004: timestamp lùi, snapshot collision).
 
 <!-- intent-skills:start -->
 

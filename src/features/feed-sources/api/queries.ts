@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
 
 import type { DiscoveredFeed } from '@/crawl/extractors/types';
-import { db as defaultDb, type Db, type DbOrTx } from '@/db';
+import { db as defaultDb, insertBatched, type Db, type DbOrTx } from '@/db';
 import { pages } from '@/features/pages/api/schema';
 import { pageId } from '@/lib/url';
 
@@ -17,23 +17,15 @@ export function feedId(url: string): string {
   return pageId(url);
 }
 
-export async function insertFeeds(
-  db: DbOrTx,
-  discovered: readonly DiscoveredFeed[],
-): Promise<number> {
-  if (discovered.length === 0) return 0;
+export function insertFeeds(db: DbOrTx, discovered: readonly DiscoveredFeed[]): Promise<number> {
+  if (discovered.length === 0) return Promise.resolve(0);
   const rows = discovered.map((d) => ({
     id: feedId(d.url),
     url: d.url,
     type: d.type,
     status: 'pending' as const,
   }));
-  const inserted = await db
-    .insert(feeds)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({ id: feeds.id });
-  return inserted.length;
+  return insertBatched(db, feeds, rows);
 }
 
 export async function getFeedsToScan(
@@ -72,21 +64,14 @@ export async function markFeedFailed(db: DbOrTx, id: string): Promise<void> {
   await db.update(feeds).set({ status: 'failed', updatedAt: new Date() }).where(eq(feeds.id, id));
 }
 
-export async function insertDiscoveredPages(
-  db: DbOrTx,
-  urls: readonly string[],
-): Promise<Array<{ id: string; url: string }>> {
-  if (urls.length === 0) return [];
+export function insertDiscoveredPages(db: DbOrTx, urls: readonly string[]): Promise<number> {
+  if (urls.length === 0) return Promise.resolve(0);
   const rows = urls.map((url) => ({
     id: pageId(url),
     url,
     status: 'pending' as const,
   }));
-  return db
-    .insert(pages)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({ id: pages.id, url: pages.url });
+  return insertBatched(db, pages, rows);
 }
 
 export function getDefaultDb(): Db {

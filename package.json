@@ -20,7 +20,7 @@
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/db-migrate.ts",
     "db:seed": "node --env-file-if-exists=.env --import tsx scripts/db-seed.ts",
     "feed:enqueue": "node --env-file-if-exists=.env --import tsx scripts/feed-enqueue.ts",
-    "inngest:dev": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
+    "inngest:dev": "pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
     "gitnexus:analyze": "gitnexus analyze --embeddings",
     "prepare": "vp config"
   },

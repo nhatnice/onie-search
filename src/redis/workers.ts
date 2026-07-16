@@ -112,29 +112,38 @@ async function feedDiscoveryDispatcherProcessor(): Promise<unknown> {
   return { result: `Dispatched ${due.length} feeds` };
 }
 
+import type Redis from 'ioredis';
+
 let pageCrawlWorker: Worker | undefined;
 let feedDiscoveryWorker: Worker | undefined;
 let feedDiscoveryDispatcherWorker: Worker | undefined;
+
+let pageCrawlConn: Redis | undefined;
+let feedDiscoveryConn: Redis | undefined;
+let feedDiscoveryDispatcherConn: Redis | undefined;
 
 export function startWorkers(): void {
   const pageCrawlConcurrency = Number(process.env.PAGE_CRAWL_CONCURRENCY) || 50;
   const workerConcurrency = Number(process.env.FEED_DISCOVERY_WORKER_CONCURRENCY) || 4;
 
+  pageCrawlConn = createRedisClient();
   pageCrawlWorker = new Worker('page-crawl', pageCrawlProcessor, {
-    connection: createRedisClient() as unknown as ConnectionOptions,
+    connection: pageCrawlConn as unknown as ConnectionOptions,
     concurrency: pageCrawlConcurrency,
   });
 
+  feedDiscoveryConn = createRedisClient();
   feedDiscoveryWorker = new Worker('feed-discovery-worker', feedDiscoveryWorkerProcessor, {
-    connection: createRedisClient() as unknown as ConnectionOptions,
+    connection: feedDiscoveryConn as unknown as ConnectionOptions,
     concurrency: workerConcurrency,
   });
 
+  feedDiscoveryDispatcherConn = createRedisClient();
   feedDiscoveryDispatcherWorker = new Worker(
     'feed-discovery-dispatcher',
     feedDiscoveryDispatcherProcessor,
     {
-      connection: createRedisClient() as unknown as ConnectionOptions,
+      connection: feedDiscoveryDispatcherConn as unknown as ConnectionOptions,
       concurrency: 1,
     },
   );
@@ -172,5 +181,17 @@ export async function stopWorkers(): Promise<void> {
     promises.push(feedDiscoveryDispatcherWorker.close());
   }
   await Promise.all(promises);
+
+  // Gracefully quit connection clients
+  if (pageCrawlConn) {
+    await pageCrawlConn.quit();
+  }
+  if (feedDiscoveryConn) {
+    await feedDiscoveryConn.quit();
+  }
+  if (feedDiscoveryDispatcherConn) {
+    await feedDiscoveryDispatcherConn.quit();
+  }
+
   console.warn('[BullMQ] Workers stopped');
 }

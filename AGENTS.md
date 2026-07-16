@@ -332,6 +332,24 @@ src/crawl/policies/noindex.ts   # ✅ crawl policy, infrastructure layer
 
 ### Quy tắc Research (bắt buộc)
 
+> ⚠️ **TUYỆT ĐỐI KHÔNG viết custom script / workaround trước khi research xong.**
+>
+> Nếu 1 tool/framework có built-in command (vd: `drizzle-kit migrate`, `drizzle-kit generate`) — **dùng built-in, không tự viết script thay thế.**
+>
+> Trước khi viết bất kỳ dòng code nào để giải quyết vấn đề:
+>
+> 1. **Check docs chính thức** — tool có built-in solution không?
+> 2. **Check GitHub issues** — cộng đồng gặp vấn đề này chưa? Họ fix thế nào?
+> 3. **Check production context** — tool có available trong production không? (dependencies vs devDependencies)
+> 4. **Verify root cause** trước khi sửa — không giả định.
+>
+> **Bài học thực tế (2026-07-16):** Migration không chạy trên fresh DB vì thiếu `CREATE SCHEMA`. Em viết 3 file script thừa (`db-setup.ts`, `db-postgenerate.ts`, sửa `db-migrate.ts`) trong khi fix thực sự chỉ cần:
+>
+> - 1 dòng `CREATE SCHEMA IF NOT EXISTS "crawler";` trong file SQL migration
+> - Move `drizzle-kit` từ `devDependencies` → `dependencies` để có trong production container
+>
+> **Bài học (Inngest adapter):** Inngest 4.12.1 nitro adapter fail với h3 v2. Em viết custom adapter ~40 dòng thay vì check `pnpm overrides` hoặc downgrade Nitro. Custom adapter = maintenance debt, type safety yếu, dễ break khi upgrade.
+
 **Trước khi setup/config/thêm feature cho bất kỳ framework/library nào, PHẢI đọc docs chính thức trước.**
 
 1. **Đọc docs chính thức** — TanStack Start, Nitro, Drizzle, Inngest, Vite+. Không dựa vào memory. Không copy-paste config cũ.

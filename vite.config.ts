@@ -96,10 +96,6 @@ export default defineConfig({
           handler: resolve(rootDir, 'src/runtime/tasks/db-extensions.ts'),
           description: 'Enable ParadeDB pg_search extension',
         },
-        'db:migrate': {
-          handler: resolve(rootDir, 'src/runtime/tasks/db-migrate.ts'),
-          description: 'Run Drizzle migrations against DATABASE_URL',
-        },
         'db:seed': {
           handler: resolve(rootDir, 'src/runtime/tasks/db-seed.ts'),
           description: 'Insert seed URLs from SEED_URLS env var (comma-separated) into pages table',

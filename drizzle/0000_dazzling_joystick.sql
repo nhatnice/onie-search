@@ -1,5 +1,5 @@
-CREATE SCHEMA IF NOT EXISTS "crawler";
---> statement-breakpoint
+CREATE SCHEMA IF NOT EXISTS crawler;
+
 CREATE TYPE "crawler"."link_type" AS ENUM('sitemap', 'internal', 'outbound');--> statement-breakpoint
 CREATE TYPE "crawler"."page_content_kind" AS ENUM('page', 'media', 'file');--> statement-breakpoint
 CREATE TYPE "crawler"."page_status" AS ENUM('pending', 'crawling', 'crawled', 'failed');--> statement-breakpoint

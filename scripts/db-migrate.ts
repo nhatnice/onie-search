@@ -1,35 +1,28 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
+import * as dotenv from 'dotenv';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { Pool } from 'pg';
-
-import { env } from '@/lib/env';
+import { Client } from 'pg';
+dotenv.config();
 
 async function main() {
-  const pool = new Pool({ connectionString: env.databaseUrl, max: 1 });
-  const db = drizzle(pool);
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+  });
+
+  await client.connect();
+  const db = drizzle(client);
+
+  console.log('🔄 Đang chạy migration...');
+
   try {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const candidates = [
-      resolve(here, 'drizzle'),
-      resolve(here, '../../drizzle'),
-      resolve(here, '../../../drizzle'),
-      resolve(process.cwd(), 'drizzle'),
-    ];
-    const migrationsFolder = candidates.find((p) => existsSync(p));
-    if (!migrationsFolder)
-      throw new Error(`Cannot find drizzle migrations folder in: ${candidates.join(', ')}`);
-    await migrate(db, { migrationsFolder });
-    console.log('Migrations applied');
+    // Trỏ tới thư mục chứa file .sql vừa generate lúc nãy
+    await migrate(db, { migrationsFolder: './drizzle' });
+    console.log('✅ Migration thành công rực rỡ!');
+  } catch (error) {
+    console.error('❌ Lỗi chi tiết đây anh ơi:', error);
   } finally {
-    await pool.end();
+    await client.end();
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main();

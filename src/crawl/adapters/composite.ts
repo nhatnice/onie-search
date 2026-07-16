@@ -64,6 +64,10 @@ export class CompositeCrawlerAdapter implements CrawlerAdapter {
       typeof response.body === 'string' ? response.body : response.body.toString('utf-8'),
       { url: response.url },
     );
-    return requiresJsRender(response, dom.window.document);
+    try {
+      return requiresJsRender(response, dom.window.document);
+    } finally {
+      dom.window.close();
+    }
   }
 }

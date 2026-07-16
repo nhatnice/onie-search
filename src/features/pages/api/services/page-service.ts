@@ -80,46 +80,50 @@ export async function crawlPage(db: DbOrTx, input: PageCrawlInput): Promise<Page
   };
   const extractor = findPageExtractor(r.contentType);
   const result = extractor.extractPage(r);
-  const page = extractPage(result.document, result.rawHtml, r.url);
-  const allLinks: CrawlableLink[] = [
-    ...result.links,
-    ...result.feeds
-      .filter((f) => f.type === 'sitemap')
-      .map((f) => ({ url: f.url, type: 'sitemap' as const })),
-  ];
-  const feedLinks = extractFeedLinks(result.document, r.url);
+  try {
+    const page = extractPage(result.document, result.rawHtml, r.url);
+    const allLinks: CrawlableLink[] = [
+      ...result.links,
+      ...result.feeds
+        .filter((f) => f.type === 'sitemap')
+        .map((f) => ({ url: f.url, type: 'sitemap' as const })),
+    ];
+    const feedLinks = extractFeedLinks(result.document, r.url);
 
-  if (feedLinks.length > 0) {
-    await insertFeedLinks(db, feedLinks);
-  }
+    if (feedLinks.length > 0) {
+      await insertFeedLinks(db, feedLinks);
+    }
 
-  const upload = await uploadWithDedup(
-    getStorage(),
-    db,
-    `pages/${pid}/page/text.html`,
-    Buffer.from(page.rawHtml, 'utf-8'),
-    'text/html',
-  );
+    const upload = await uploadWithDedup(
+      getStorage(),
+      db,
+      `pages/${pid}/page/text.html`,
+      Buffer.from(page.rawHtml, 'utf-8'),
+      'text/html',
+    );
 
-  const saveResult = await saveCrawlResult(db, {
-    pid,
-    extracted: page,
-    links: allLinks,
-    blob: upload,
-  });
-
-  if (saveResult.newPages.length > 0) {
-    await eventEmitter.emitAsync(PAGES_CREATED, {
-      pages: saveResult.newPages.map((p) => ({ pageId: p.id, url: p.url })),
+    const saveResult = await saveCrawlResult(db, {
+      pid,
+      extracted: page,
+      links: allLinks,
+      blob: upload,
     });
-  }
-  eventEmitter.emit(PAGE_CONTENT_CREATED, {
-    pageId: pid,
-    contentId: saveResult.contentId,
-    kind: 'page' as const,
-  });
 
-  return { pageId: pid, status: 'ok', contentId: saveResult.contentId };
+    if (saveResult.newPages.length > 0) {
+      await eventEmitter.emitAsync(PAGES_CREATED, {
+        pages: saveResult.newPages.map((p) => ({ pageId: p.id, url: p.url })),
+      });
+    }
+    eventEmitter.emit(PAGE_CONTENT_CREATED, {
+      pageId: pid,
+      contentId: saveResult.contentId,
+      kind: 'page' as const,
+    });
+
+    return { pageId: pid, status: 'ok', contentId: saveResult.contentId };
+  } finally {
+    result.close?.();
+  }
 }
 
 export async function markPageFailed(db: DbOrTx, input: PageCrawlInput): Promise<void> {

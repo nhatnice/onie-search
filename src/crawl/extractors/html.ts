@@ -29,6 +29,7 @@ export class HtmlExtractor implements PageExtractor {
       rawHtml,
       links: extractAnchorLinks(document, response.url),
       feeds,
+      close: () => dom.window.close(),
     };
   }
 }

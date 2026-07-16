@@ -14,27 +14,45 @@ interface ParsedSitemap {
   childFeeds: DiscoveredFeed[];
 }
 
+function cleanXmlText(text: string): string {
+  text = text.trim();
+  if (text.startsWith('<![CDATA[') && text.endsWith(']]>')) {
+    text = text.substring(9, text.length - 3).trim();
+  }
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 function parseSitemap(response: CrawlResponse): ParsedSitemap {
   const xml = typeof response.body === 'string' ? response.body : response.body.toString('utf-8');
-  const dom = createSilentJSDOM(xml, { contentType: 'text/xml' });
-  const document = dom.window.document;
-  const seenLink = new Set<string>();
-  const seenFeed = new Set<string>();
   const pageLinks: RawLink[] = [];
   const childFeeds: DiscoveredFeed[] = [];
+  const seenLink = new Set<string>();
+  const seenFeed = new Set<string>();
 
-  for (const loc of Array.from(document.querySelectorAll('sitemapindex > sitemap > loc'))) {
-    const text = loc.textContent?.trim();
-    if (!text || seenFeed.has(text)) continue;
-    seenFeed.add(text);
-    childFeeds.push({ url: text, type: 'sitemap' });
+  const sitemapRegex = /<sitemap>[\s\S]*?<loc>([\s\S]*?)<\/loc>[\s\S]*?<\/sitemap>/gi;
+  let match;
+  while ((match = sitemapRegex.exec(xml)) !== null) {
+    const url = cleanXmlText(match[1]);
+    if (url && !seenFeed.has(url)) {
+      seenFeed.add(url);
+      childFeeds.push({ url, type: 'sitemap' });
+    }
   }
-  for (const loc of Array.from(document.querySelectorAll('urlset > url > loc'))) {
-    const text = loc.textContent?.trim();
-    if (!text || seenLink.has(text)) continue;
-    seenLink.add(text);
-    pageLinks.push({ url: text, type: 'sitemap', source: 'sitemap' });
+
+  const urlRegex = /<url>[\s\S]*?<loc>([\s\S]*?)<\/loc>[\s\S]*?<\/url>/gi;
+  while ((match = urlRegex.exec(xml)) !== null) {
+    const url = cleanXmlText(match[1]);
+    if (url && !seenLink.has(url)) {
+      seenLink.add(url);
+      pageLinks.push({ url, type: 'sitemap', source: 'sitemap' });
+    }
   }
+
   return { pageLinks, childFeeds };
 }
 
@@ -47,11 +65,13 @@ export class SitemapExtractor implements PageExtractor, FeedExtractor {
 
   extractPage(response: CrawlResponse): PageExtractionResult {
     const { pageLinks, childFeeds } = parseSitemap(response);
+    const dom = createSilentJSDOM('', { contentType: 'text/xml' });
     return {
-      document: createSilentJSDOM('', { contentType: 'text/xml' }).window.document,
+      document: dom.window.document,
       rawHtml: typeof response.body === 'string' ? response.body : response.body.toString('utf-8'),
       links: pageLinks,
       feeds: childFeeds,
+      close: () => dom.window.close(),
     };
   }
 

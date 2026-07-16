@@ -18,6 +18,7 @@ export interface PageExtractionResult {
   rawHtml: string;
   links: RawLink[];
   feeds: DiscoveredFeed[];
+  close?: () => void;
 }
 
 export interface FeedExtractionResult {

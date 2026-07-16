@@ -1,22 +1,17 @@
 import { db } from '@/db/client';
-import { seedPages } from '@/features/pages/api/services/page-service';
+import { insertFeeds } from '@/features/feed-sources/api/queries';
+import { parseSeedFeeds } from '@/features/feed-sources/utils/parse-seed-feeds';
 import { env } from '@/lib/env';
 
-function parseSeedUrls(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((u) => u.trim())
-    .filter((u) => u.length > 0);
-}
-
 async function main() {
-  const urls = parseSeedUrls(env.seedUrls);
-  if (urls.length === 0) {
-    console.log('No SEED_URLS set — nothing to seed');
+  const raw = env.seedFeeds;
+  if (raw.length === 0) {
+    console.log('No SEED_FEEDS set — nothing to seed');
     return;
   }
-  const { inserted } = await seedPages(db, urls);
-  console.log(`Seeded ${inserted} new pages (of ${urls.length} attempted)`);
+  const discovered = parseSeedFeeds(raw);
+  const inserted = await insertFeeds(db, discovered);
+  console.log(`Seeded ${inserted} new feeds (of ${discovered.length} attempted)`);
   process.exit(0);
 }
 

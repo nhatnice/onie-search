@@ -27,6 +27,8 @@
     "**/.cache": true,
     "**/.gitnexus": true,
     "**/.tanstack": true,
+    "**/.idea": true,
+    "**/.output": true,
     "**/node_modules": true
   }
 }

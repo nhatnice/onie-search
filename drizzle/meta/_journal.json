@@ -26,15 +26,36 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1752580000000,
+      "when": 1783760000000,
       "tag": "0003_add_feeds_table",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1752580100000,
+      "when": 1783760000001,
       "tag": "0004_page_contents_r2",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783760000002,
+      "tag": "0005_organic_makkari",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783760000003,
+      "tag": "0006_move_to_crawler_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784179024186,
+      "tag": "0007_fair_madame_hydra",
       "breakpoints": true
     }
   ]

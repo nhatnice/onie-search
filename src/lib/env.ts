@@ -19,8 +19,4 @@ export const env = {
   r2SecretAccessKey: required('R2_SECRET_ACCESS_KEY'),
   r2Bucket: required('R2_BUCKET'),
   r2PublicUrl: required('R2_PUBLIC_URL'),
-  inngestEventKey: optional('INNGEST_EVENT_KEY', 'test_key'),
-  inngestSigningKey: optional('INNGEST_SIGNING_KEY', 'test_signing_key'),
-  inngestAppId: optional('INNGEST_APP_ID', 'portal'),
-  inngestEndpoint: optional('INNGEST_ENDPOINT', 'http://localhost:8288'),
 } as const;

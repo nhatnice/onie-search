@@ -1,11 +1,7 @@
 import { Inngest } from 'inngest';
 
-import { env } from '@/lib/env';
-
+// ponytail: SDK tự đọc INNGEST_EVENT_KEY / INNGEST_SIGNING_KEY / INNGEST_BASE_URL từ env
 export const inngest = new Inngest({
-  id: env.inngestAppId,
-  eventKey: env.inngestEventKey,
-  signingKey: env.inngestSigningKey,
+  id: 'portal',
   isDev: process.env.NODE_ENV !== 'production',
-  // checkpointing: { maxRuntime: '120s' },
 });

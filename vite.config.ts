@@ -82,6 +82,7 @@ export default defineConfig({
         database: true,
         tasks: true,
       },
+      plugins: [resolve(rootDir, 'src/runtime/plugins/bullmq.ts')],
       database: {
         default: {
           connector: 'postgresql',

@@ -32,9 +32,7 @@ export class BrowserlessContentAdapter implements CrawlerAdapter {
       }),
     });
     if (!res.ok) throw new Error(`browserless-content ${res.status}: ${await res.text()}`);
-    const body = (await res.json()) as unknown;
-    const html =
-      typeof body === 'object' && body !== null && 'html' in body ? String(body.html) : '';
+    const html = await res.text();
     return {
       url,
       statusCode: res.status,

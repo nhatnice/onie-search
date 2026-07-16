@@ -14,6 +14,9 @@ export default defineConfig({
   staged: {
     '*': 'vp check --fix',
   },
+  optimizeDeps: {
+    exclude: ['fsevents'],
+  },
   fmt: {
     printWidth: 100,
     tabWidth: 2,
@@ -101,9 +104,6 @@ export default defineConfig({
           handler: resolve(rootDir, 'src/runtime/tasks/db-seed.ts'),
           description: 'Insert seed URLs from SEED_URLS env var (comma-separated) into pages table',
         },
-      },
-      routes: {
-        '/api/inngest': resolve(rootDir, 'src/runtime/routes/inngest.ts'),
       },
     }),
     stylex.vite({

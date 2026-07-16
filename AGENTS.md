@@ -137,7 +137,7 @@ Quy tắc:
 ### Inngest
 
 - `src/inngest/` — event-driven infra. `Inngest` client + step functions.
-- Serve endpoint: `src/runtime/routes/inngest.ts` — Nitro route mount tại `/api/inngest` qua `inngest/nitro` adapter.
+- Serve endpoint: `src/routes/api/inngest.ts` — Nitro route mount tại `/api/inngest` qua `inngest/nitro` adapter.
 - Local dev: `pnpm inngest:dev` chạy Inngest dev server trỏ về `http://localhost:3000/api/inngest`.
 - Inngest tự lưu event log — KHÔNG cần table events riêng.
 - **Parallel steps pattern** (`Promise.all` + `step.run`): mỗi branch của `Promise.all` PHẢI là 1 `step.run` call — KHÔNG trộn `step.run` với plain async function. Mixing trigger `NESTING_STEPS` warning (và ESLint rule `@inngest/no-nested-steps` sẽ flag). Bug thực tế ở `feed-service.ts:persistFeedDiscovery`: `Promise.all([discoverAndEmitPages(step), insertFeedLinks(plain)])` → warning. Fix: `Promise.all([step.run('a', ...), step.run('b', ...)])` + `step.sendEvent` chạy _sau_ Promise.all (sequential, vì sendEvent cần kết quả các step trước). Source: Inngest docs `step-parallelism` + `@inngest/no-nested-steps` rule.
@@ -434,17 +434,20 @@ Có 2 cách chạy tasks:
    ```json
    "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/db-migrate.ts"
    ```
+
    - Không cần dev server chạy.
    - Scripts ở `scripts/` folder, gọi logic từ `@/features/*/api/`.
    - Phù hợp: migration, seed, one-shot scripts.
 
 2. **HTTP endpoint** (qua `POST /_nitro/tasks/:name`) — qua dev server:
+
    ```bash
    # Terminal 1
    pnpm dev
    # Terminal 2
    curl -X POST http://localhost:3000/_nitro/tasks/db:seed
    ```
+
    - Cần `pnpm dev` chạy song song.
    - Tasks phải được register trong `nitro({ tasks: {...} })`.
    - Phù hợp: webhook từ external service.

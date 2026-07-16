@@ -1,4 +1,4 @@
-import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import type { PgTable } from 'drizzle-orm/pg-core';
 
 import type { DbOrTx } from './types';
 
@@ -12,23 +12,22 @@ import type { DbOrTx } from './types';
 // and `pages` (3 params) at 3k.
 const INSERT_CHUNK = 1000;
 
-type WithId = { id: PgColumn } & PgTable;
-
-export async function insertBatched<TTable extends WithId>(
+export async function insertBulk<T extends PgTable>(
   db: DbOrTx,
-  table: TTable,
-  rows: readonly TTable['$inferInsert'][],
-): Promise<number> {
-  if (rows.length === 0) return 0;
-  let inserted = 0;
+  table: T,
+  rows: T['$inferInsert'][],
+  returning: (cols: T) => Record<string, unknown>,
+): Promise<T['$inferInsert'][]> {
+  if (rows.length === 0) return [];
+  const results: T['$inferInsert'][] = [];
   for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
     const slice = rows.slice(i, i + INSERT_CHUNK);
     const res = await db
       .insert(table)
       .values(slice)
       .onConflictDoNothing()
-      .returning({ id: table.id });
-    inserted += res.length;
+      .returning(returning(table) as any);
+    results.push(...res);
   }
-  return inserted;
+  return results;
 }

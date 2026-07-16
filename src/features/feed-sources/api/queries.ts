@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
 
 import type { DiscoveredFeed } from '@/crawl/extractors/types';
-import { db as defaultDb, insertBatched, type Db, type DbOrTx } from '@/db';
+import { db as defaultDb, insertBulk, type Db, type DbOrTx } from '@/db';
 import { pageId } from '@/lib/url';
 
 import { feeds, type Feed } from './schema';
@@ -24,7 +24,7 @@ export function insertFeeds(db: DbOrTx, discovered: readonly DiscoveredFeed[]): 
     type: d.type,
     status: 'pending' as const,
   }));
-  return insertBatched(db, feeds, rows);
+  return insertBulk(db, feeds, rows, (t) => ({ id: t.id })).then((r) => r.length);
 }
 
 export async function getFeedsToScan(

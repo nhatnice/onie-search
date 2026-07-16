@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { and, asc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 
+import { insertBulk } from '@/db';
 import type { DbOrTx } from '@/db/types';
 import { pageId } from '@/lib/url';
 import type { UploadResult } from '@/storage';
@@ -58,11 +59,7 @@ export async function insertSeedPages(
 ): Promise<Array<{ id: string; url: string }>> {
   if (urls.length === 0) return [];
   const rows = urls.map((url) => ({ id: pageId(url), url, status: 'pending' as const }));
-  return db
-    .insert(pages)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({ id: pages.id, url: pages.url });
+  return insertBulk(db, pages, rows, (t) => ({ id: t.id, url: t.url }));
 }
 
 export interface SaveCrawlArgs {
@@ -194,12 +191,7 @@ function insertTargetPages(
   tx: DbOrTx,
   rows: Array<{ id: string; url: string; status: 'pending' }>,
 ): Promise<Array<{ id: string; url: string }>> {
-  if (rows.length === 0) return Promise.resolve([]);
-  return tx
-    .insert(pages)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({ id: pages.id, url: pages.url });
+  return insertBulk(tx, pages, rows, (t) => ({ id: t.id, url: t.url }));
 }
 
 function insertEdges(

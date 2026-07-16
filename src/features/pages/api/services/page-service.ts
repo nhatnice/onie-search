@@ -8,7 +8,7 @@ import {
   type CrawlerAdapter,
 } from '@/crawl';
 import type { DbOrTx } from '@/db/types';
-import { eventEmitter, PAGE_CONTENT_CREATED, PAGE_CREATED } from '@/events/emitter';
+import { eventEmitter, PAGE_CONTENT_CREATED, PAGE_CREATED, PAGES_CREATED } from '@/events/emitter';
 import { insertFeedLinks } from '@/features/feed-sources/api/services/feed-service';
 import { R2ObjectStorage, uploadWithDedup, type ObjectStorage } from '@/storage';
 
@@ -111,9 +111,9 @@ export async function crawlPage(db: DbOrTx, input: PageCrawlInput): Promise<Page
   // Emit event via eventEmitter instead of step.sendEvent
   eventEmitter.emit(PAGE_CREATED, { pageId: pid, url });
   if (saveResult.newPages.length > 0) {
-    for (const p of saveResult.newPages) {
-      eventEmitter.emit(PAGE_CREATED, { pageId: p.id, url: p.url });
-    }
+    await eventEmitter.emitAsync(PAGES_CREATED, {
+      pages: saveResult.newPages.map((p) => ({ pageId: p.id, url: p.url })),
+    });
   }
   eventEmitter.emit(PAGE_CONTENT_CREATED, {
     pageId: pid,
@@ -149,7 +149,11 @@ export async function insertDiscoveredPages(db: DbOrTx, urls: readonly string[])
 
 function emitSeedPageCreatedFireForget(rows: ReadonlyArray<{ id: string; url: string }>): void {
   if (rows.length === 0) return;
-  for (const r of rows) {
-    eventEmitter.emit(PAGE_CREATED, { pageId: r.id, url: r.url });
-  }
+  void eventEmitter
+    .emitAsync(PAGES_CREATED, {
+      pages: rows.map((r) => ({ pageId: r.id, url: r.url })),
+    })
+    .catch((err) => {
+      console.error('[page-service] emit seed pages.created failed', err);
+    });
 }

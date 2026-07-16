@@ -1,12 +1,17 @@
 import EventEmitter2 from 'eventemitter2';
 
 export const PAGE_CREATED = 'page.created' as const;
+export const PAGES_CREATED = 'pages.created' as const;
 export const PAGE_CONTENT_CREATED = 'page-content.created' as const;
 export const FEED_DISCOVERY_REQUESTED = 'feed.discovery.requested' as const;
 
 export interface PageCreatedData {
   pageId: string;
   url: string;
+}
+
+export interface PagesCreatedData {
+  pages: Array<{ pageId: string; url: string }>;
 }
 
 export interface PageContentCreatedData {

@@ -1,6 +1,6 @@
 import type { DiscoveredFeed } from '@/crawl/extractors/types';
 import type { DbOrTx } from '@/db/types';
-import { eventEmitter, PAGE_CREATED } from '@/events/emitter';
+import { eventEmitter, PAGES_CREATED } from '@/events/emitter';
 import { insertDiscoveredPages } from '@/features/pages/api/services/page-service';
 import { pageId } from '@/lib/url';
 
@@ -23,23 +23,12 @@ export async function persistFeedDiscovery(
     insertFeeds(db, extracted.feeds),
   ]);
 
-  await emitPageCreated(extracted.links);
+  if (extracted.links.length > 0) {
+    await eventEmitter.emitAsync(PAGES_CREATED, {
+      pages: extracted.links.map((url) => ({ pageId: pageId(url), url })),
+    });
+  }
 
   await markFeedScanned(db, feedId);
   return { pagesAdded, feedsAdded };
-}
-
-async function emitPageCreated(urls: readonly string[]): Promise<void> {
-  if (urls.length === 0) return;
-
-  const batchSize = 100;
-  for (let i = 0; i < urls.length; i += batchSize) {
-    const chunk = urls.slice(i, i + batchSize);
-    for (const url of chunk) {
-      eventEmitter.emit(PAGE_CREATED, { pageId: pageId(url), url });
-    }
-    // Yield to the event loop to prevent blocking or overwhelming connections
-    // eslint-disable-next-line eslint/no-await-in-loop
-    await new Promise((resolve) => setImmediate(resolve));
-  }
 }

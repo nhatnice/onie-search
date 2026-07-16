@@ -159,6 +159,8 @@ Quy tắc:
 
 - `src/db/client.ts` — Drizzle client init. Pool config KHÔNG dùng `pool.on('connect')` event để `SET search_path` (fire-and-forget → race với query đầu tiên trên cùng client → pg@8 DeprecationWarning, pg@9 sẽ throw "client is already executing a query"). Dùng `options: '-c search_path=...'` connection parameter (libpq GUC at startup, 0 query, no race) — đây là official node-postgres approach. Source: node-postgres `pool.mdx` `onConnect` config example (awaited) vs `pool.on('connect')` event (fire-and-forget).
 
+- **Mọi table/enum PHẢI thuộc 1 schema cụ thể. TUYỆT ĐỐI KHÔNG dùng global `pgTable`/`pgEnum`** — chúng mặc định vào `public`. Luôn dùng `pgSchema('name').table()` / `.enum()`. Không compile error, không runtime error, chỉ phát hiện khi đọc migration SQL.
+
 ### Export
 
 - Mỗi module có 1 mục đích rõ ràng, export tối thiểu cần thiết.
@@ -440,7 +442,11 @@ Khi thay đổi DB schema (thêm/sửa table, cột, enum, index, reference):
    - `drizzle/XXXX_<codename>.sql` — migration SQL (codename tự sinh, KHÔNG tự đặt tên).
    - `drizzle/meta/XXXX_snapshot.json` — snapshot mới (id UUID + prevId trỏ về snapshot trước).
    - Append entry vào `drizzle/meta/_journal.json` (timestamp `when` = `Date.now()`, tự tăng).
-3. **Review migration SQL** — đặc biệt DROP/ALTER (destructive? cần data migration?).
+3. **Review migration SQL** — BẮT BUỘC kiểm tra từng dòng SQL sinh ra. Cụ thể:
+   - **Schema qualifier**: `CREATE TABLE`/`CREATE TYPE`/`CREATE INDEX` có qualifier schema đúng không? (`crawler.feeds` vs `feeds` mặc định → `public.feeds`).
+   - **Destructive**: Có DROP TABLE/DROP COLUMN không? Có cần data migration trước không?
+   - **Foreign keys**: `REFERENCES` trỏ đúng schema chưa? (`REFERENCES "crawler"."pages"` vs `REFERENCES "public"."pages"`).
+   - **Column name casing**: Tất cả cột có snake_case không? (Drizzle global column name từ JS property name — nếu JS property là `linkType`, SQL column sẽ là `linkType` trừ khi truyền string thứ 2).
 4. **Apply** — `pnpm db:migrate`.
 5. **Verify** — check `drizzle.__drizzle_migrations` count + columns/tables mới.
 

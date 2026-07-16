@@ -1,13 +1,4 @@
-import {
-  index,
-  integer,
-  jsonb,
-  pgSchema,
-  pgTable,
-  text,
-  timestamp,
-  unique,
-} from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgSchema, text, timestamp, unique } from 'drizzle-orm/pg-core';
 
 const crawlerSchema = pgSchema('crawler');
 
@@ -26,7 +17,7 @@ export const pageContentKindEnum = crawlerSchema.enum('page_content_kind', [
   'file',
 ]);
 
-export const pages = pgTable(
+export const pages = crawlerSchema.table(
   'pages',
   {
     id: text('id').primaryKey(),
@@ -40,7 +31,7 @@ export const pages = pgTable(
   (t) => [index('idx_pages_status').on(t.status), index('idx_pages_url').on(t.url)],
 );
 
-export const pageMetadata = pgTable('page_metadata', {
+export const pageMetadata = crawlerSchema.table('page_metadata', {
   pageId: text('page_id')
     .primaryKey()
     .references(() => pages.id),
@@ -56,7 +47,7 @@ export const pageMetadata = pgTable('page_metadata', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const pageContents = pgTable(
+export const pageContents = crawlerSchema.table(
   'page_contents',
   {
     id: text('id').primaryKey(),
@@ -79,7 +70,7 @@ export const pageContents = pgTable(
   ],
 );
 
-export const pageLinks = pgTable(
+export const pageLinks = crawlerSchema.table(
   'page_links',
   {
     id: text('id').primaryKey(),
@@ -89,7 +80,7 @@ export const pageLinks = pgTable(
     targetPageId: text('target_page_id')
       .notNull()
       .references(() => pages.id),
-    linkType: linkTypeEnum().notNull(),
+    linkType: linkTypeEnum('link_type').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

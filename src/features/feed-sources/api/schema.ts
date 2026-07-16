@@ -1,10 +1,22 @@
-import { index, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, pgSchema, text, timestamp } from 'drizzle-orm/pg-core';
 
-export const feedTypeEnum = pgEnum('feed_type', ['sitemap', 'rss', 'atom', 'json_feed']);
+const crawlerSchema = pgSchema('crawler');
 
-export const feedStatusEnum = pgEnum('feed_status', ['pending', 'scanning', 'scanned', 'failed']);
+export const feedTypeEnum = crawlerSchema.enum('feed_type', [
+  'sitemap',
+  'rss',
+  'atom',
+  'json_feed',
+]);
 
-export const feeds = pgTable(
+export const feedStatusEnum = crawlerSchema.enum('feed_status', [
+  'pending',
+  'scanning',
+  'scanned',
+  'failed',
+]);
+
+export const feeds = crawlerSchema.table(
   'feeds',
   {
     id: text('id').primaryKey(),

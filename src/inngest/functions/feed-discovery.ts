@@ -16,10 +16,10 @@ import {
   FEED_DISCOVERY_WORKER_FUNCTION_ID,
   type FeedDiscoveryRequestedData,
 } from '@/inngest/events';
-import { env } from '@/lib/env';
 import { canonicalizeUrl } from '@/lib/url';
 
 const BATCH_SIZE = 100;
+const WORKER_CONCURRENCY = Number(process.env.FEED_DISCOVERY_WORKER_CONCURRENCY) || 4;
 
 let fetcherInstance: CrawlerAdapter | undefined;
 
@@ -96,7 +96,7 @@ export const feedDiscoveryWorker = inngest.createFunction(
     id: FEED_DISCOVERY_WORKER_FUNCTION_ID,
     triggers: [{ event: FEED_DISCOVERY_REQUESTED }],
     retries: 3,
-    concurrency: { limit: env.feedDiscoveryWorkerConcurrency },
+    concurrency: { limit: WORKER_CONCURRENCY },
     idempotency: 'event.data.feedId',
   },
   async ({ event, step }) => {

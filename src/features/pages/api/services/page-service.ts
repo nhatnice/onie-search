@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import type { GetStepTools, Inngest } from 'inngest';
 
 import type { CrawlResponse } from '@/crawl';
@@ -11,11 +12,11 @@ import type { DbOrTx } from '@/db/types';
 import { insertFeedLinks } from '@/features/feed-sources/api/services/feed-service';
 import { inngest } from '@/inngest/client';
 import { PAGE_CONTENT_CREATED, PAGE_CREATED, type PageCreatedData } from '@/inngest/events';
-import { canonicalizeUrl } from '@/lib/url';
 import { R2ObjectStorage, uploadWithDedup, type ObjectStorage } from '@/storage';
 
 import { extractPage } from '../extract';
 import { insertSeedPages, markCrawled, markFailed, saveCrawlResult } from '../queries';
+import { pages } from '../schema';
 import type { CrawlableLink } from '../types';
 
 type Step = GetStepTools<Inngest.Any>;
@@ -49,6 +50,13 @@ export async function crawlPage(
   step: Step,
 ): Promise<PageCrawlResult> {
   const { pageId: pid, url } = input;
+
+  await step.run('mark-crawling', async () => {
+    await db
+      .update(pages)
+      .set({ status: 'crawling', updatedAt: new Date() })
+      .where(eq(pages.id, pid));
+  });
 
   let response: { statusCode: number; contentType: string; url: string; body: string };
   try {
@@ -95,12 +103,7 @@ export async function crawlPage(
       ...result.feeds
         .filter((f) => f.type === 'sitemap')
         .map((f) => ({ url: f.url, type: 'sitemap' as const })),
-    ]
-      // Canonicalize to strip tracking params + normalize — prevents duplicate
-      // pages when feed-discovery and page-crawl both discover the same URL
-      // with different query strings (e.g. ?utm_source=fb vs clean).
-      .map((l) => ({ ...l, url: canonicalizeUrl(l.url) ?? l.url }))
-      .filter((l, i, arr) => arr.findIndex((x) => x.url === l.url) === i);
+    ];
     const feedLinks = extractFeedLinks(result.document, r.url);
     return { page, links: allLinks, feedLinks };
   });

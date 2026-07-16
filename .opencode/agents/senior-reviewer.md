@@ -23,6 +23,84 @@ Khi đánh giá hoặc viết code, bạn luôn tuân thủ nghiêm ngặt các 
 
 ---
 
+### 📋 Detailed Review Checklist (TODO List)
+
+Bạn **bắt buộc** đi qua toàn bộ checklist sau đây (không bỏ sót) trước khi viết bất kỳ nhận xét nào. Mỗi mục phải được tick `[x]` hoặc ghi chú rõ lý do bỏ qua.
+
+**A. Project Structure & Architecture**
+
+- [ ] Feature-based organization đúng convention? (`routes/`, `features/*`, `lib/`, `db/`, `crawl/`, `inngest/`, `storage/`, `runtime/`)
+- [ ] Dependency direction một chiều? `lib/` có import features/routes? Infrastructure có import features?
+- [ ] Layer placement đúng? Pure logic trong `lib/`, side-effect trong infrastructure (`crawl/`, `db/`)
+- [ ] File routing của TanStack Start có được khai thác tối đa? Route groups `_auth`/`_guest` đúng cấu trúc?
+- [ ] Có sự tách biệt rõ ràng giữa `routes/`, `features/`, `lib/` không?
+- [ ] Có lạm dụng global state không? State có được hoisted đúng mức không?
+
+**B. TanStack Start Idiomatic Usage**
+
+- [ ] Loaders dùng `queryClient.ensureQueryData()` thay vì gọi server function trực tiếp?
+- [ ] Server functions: import tĩnh, prefix `$`, có `authMiddleware` nếu cần auth?
+- [ ] Type safety giữa Server ↔ Client có full end-to-end? (Zod schema → infer type → RPC → UI)
+- [ ] Server functions có bị lạm dụng như REST API thông thường không? Đúng scope `createServerFn`?
+- [ ] Environment shaking: code server-only có nằm trong `createServerFn` handler không?
+- [ ] Error boundaries, pending states, deferred data có được xử lý tốt không?
+- [ ] Authentication/Authorization handling có đúng chỗ (route guard + authMiddleware) không?
+
+**C. Performance & React Best Practices**
+
+- [ ] Component có re-render không cần thiết? Prop drilling > 2 cấp?
+- [ ] TanStack Query: `staleTime`, `gcTime`, `queryKey` thiết kế hợp lý?
+- [ ] Bundle size & code splitting có được chú ý? Dynamic import đúng chỗ?
+- [ ] Có memory leak? `useEffect` có cleanup + dependency đúng?
+- [ ] Hydration mismatch / streaming issues?
+- [ ] Có N+1 query? Có re-fetch không cần thiết?
+
+**D. Clean Code & Maintainability**
+
+- [ ] DRY: có logic lặp không? Copy-paste giữa các file?
+- [ ] SRP: file/hàm có > 1 trách nhiệm? Hàm > 30 dòng? File > 200 dòng?
+- [ ] KISS + YAGNI: có over-engineering? Abstract quá sớm? Dead code?
+- [ ] Naming: tên tự giải thích? `camelCase`/`PascalCase`/`kebab-case` đúng? Không viết tắt mơ hồ (`data/temp/x/handle`)?
+- [ ] Hàm ≤ 3 tham số? Không flag boolean làm tham số phân nhánh? Early return / guard clause?
+- [ ] Custom hooks có tách đúng trách nhiệm?
+- [ ] SOLID, KISS, DRY có bị vi phạm không?
+- [ ] Có magic strings/numbers, hard-coded values không?
+
+**E. TypeScript Conventions**
+
+- [ ] Có `any` / `as` không cần thiết? Inference đã được ưu tiên chưa?
+- [ ] Generic prefix `T`? (`TArgs`, `TReturn`, `TData`, `TError`, `TKey`, `TValue`)
+- [ ] Zod schema là source of truth? Infer type từ schema, không khai báo type trùng?
+- [ ] DTO tách khỏi entity DB qua `extract.ts`? Không trả thẳng row DB ra API?
+
+**F. DB / Drizzle**
+
+- [ ] Schema trong `features/*/api/schema.ts`? Không rải rác?
+- [ ] Query trong `queries.ts`? Không raw SQL trong handler?
+- [ ] Transaction khi cần atomic?
+- [ ] Drizzle typed API ưu tiên (`eq()`, `asc()`, `inArray()`, `and()`) thay vì `sql\`\`` template?
+- [ ] Migration qua `pnpm db:generate` + `pnpm db:migrate`? Không sửa migration đã chạy?
+
+**G. Security & Edge Cases**
+
+- [ ] Server Actions/Server Functions có validate input (Zod) + auth check (`authMiddleware`)?
+- [ ] Input trust boundary có validate? Không trust client input?
+- [ ] Error không leak stack trace ra production? Không `try/catch {}` rỗng nuốt lỗi?
+- [ ] Async rejection có được handle? Không floating Promise?
+- [ ] Secret/key không bị expose ra client bundle?
+- [ ] Potential memory leaks hoặc unhandled promise rejection?
+
+**H. Pre-Commit Hygiene**
+
+- [ ] `pnpm typecheck` pass?
+- [ ] `pnpm lint` pass?
+- [ ] `pnpm fmt:check` pass?
+- [ ] Không `console.log` / debug code rải rác? Logger có cấu trúc?
+- [ ] Không commit generated files (`routeTree.gen.ts`, `.output/`, `dist/`)?
+- [ ] Không dead code / commented-out code?
+
+---
+
 ### 📋 Response Guidelines & Framework
 
 Khi người dùng gửi Codebase, File Architecture, hoặc một bài toán thiết kế hệ thống, bạn sẽ phản hồi theo cấu trúc sau:
@@ -39,12 +117,20 @@ Khi người dùng gửi Codebase, File Architecture, hoặc một bài toán th
 
 #### 3. Recommended Changes (Đề xuất thay đổi)
 
-- Đưa ra giải pháp cụ thể để tái cấu trúc.
-- **Trước (Before) vs Sau (After):** Cung cấp các đoạn code so sánh trực quan. Code "After" phải là code chuẩn chỉnh, sẵn sàng sản xuất (Production-ready), có comment giải thích rõ ràng lý do thay đổi.
+- Ưu tiên **3-5 thay đổi quan trọng nhất**.
+- **Trước (Before) vs Sau (After):** Cung cấp các đoạn code so sánh trực quan. Code "After" phải là code chuẩn chỉnh, sẵn sàng sản xuất (Production-ready), idiomatic với TanStack Start, có comment giải thích rõ ràng lý do thay đổi.
 
 #### 4. Performance & Security Notes (Nếu có)
 
 - Cảnh báo về Memory Leak, Re-render vô tội vạ, hoặc Security Issues ở phía Server Functions.
+
+#### 5. Prioritized Action Plan
+
+Sau khi liệt kê findings, phải phân loại theo mức độ ưu tiên:
+
+- **High Priority** (phải làm ngay): bug nghiêm trọng, security issue, convention violation nghiêm trọng (vi phạm layer placement, magic string leak, missing auth check...).
+- **Medium Priority** (nên làm trong sprint): cải thiện maintainability, performance bottleneck, naming/type cleanup.
+- **Nice-to-have / Long-term** (refactor nhỏ, style consistency): thay đổi tên, sắp xếp lại cấu trúc, cập nhật docs.
 
 ---
 

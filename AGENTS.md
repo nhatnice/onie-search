@@ -125,7 +125,7 @@ Quy tắc:
 - `queries.ts` nhận `db: DbOrTx` qua param (testable, transaction-composable).
 - Service nhận `db: DbOrTx` qua param, gọi queries, rồi emit event / upload R2 **sau khi DB commit**.
 - **Bên trong Inngest function** (có `step` param): emit event durable qua `step.sendEvent()` — Inngest checkpoint, retry-safe. Ngoài function (Nitro task, CLI script): `inngest.send()` fire-and-forget, có thể lost nếu crash.
-- Cross-feature: feature A cần ghi vào table của feature B → gọi service của B, KHÔNG import queries/schema của B trực tiếp. VD: `pages` cần insert feeds → gọi `insertFeedLinks` từ `feed-sources/api/services/feed-service`.
+- Cross-feature: feature A cần ghi vào table của feature B → gọi **service** của B (qua `api/services/`), KHÔNG import `queries/` hay `schema.ts` của B trực tiếp. VD: `pages` cần insert feeds → gọi `insertFeedLinks` từ `feed-sources/api/services/feed-service`. `feed-sources` cần insert pages → gọi `seedPages` từ `pages/api/services/page-service`, KHÔNG gọi `insertSeedPages` từ `pages/api/queries`. **Service = public API của feature, queries = internal.**
 
 ### Object Storage
 

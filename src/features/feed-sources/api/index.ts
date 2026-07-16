@@ -3,7 +3,6 @@ export {
   feedId,
   getDefaultDb,
   getFeedsToScan,
-  insertDiscoveredPages,
   insertFeeds,
   markFeedFailed,
   markFeedScanned,

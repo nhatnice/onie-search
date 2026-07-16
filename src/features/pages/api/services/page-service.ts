@@ -170,6 +170,16 @@ export async function seedPages(db: DbOrTx, urls: string[]): Promise<{ inserted:
   return { inserted: rows.length };
 }
 
+// Cross-feature public API: feed-sources worker uses this to insert pages
+// discovered from sitemaps. Does NOT emit PAGE_CREATED — caller (worker)
+// emits via step.sendEvent in the outer Inngest function so events are
+// checkpointed and retry-safe.
+export async function insertDiscoveredPages(db: DbOrTx, urls: readonly string[]): Promise<number> {
+  if (urls.length === 0) return 0;
+  const rows = await insertSeedPages(db, [...urls]);
+  return rows.length;
+}
+
 function emitSeedPageCreatedFireForget(rows: ReadonlyArray<{ id: string; url: string }>): void {
   if (rows.length === 0) return;
   const payload = rows.map((r) => ({

@@ -2,7 +2,6 @@ import { and, asc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
 
 import type { DiscoveredFeed } from '@/crawl/extractors/types';
 import { db as defaultDb, insertBatched, type Db, type DbOrTx } from '@/db';
-import { pages } from '@/features/pages/api/schema';
 import { pageId } from '@/lib/url';
 
 import { feeds, type Feed } from './schema';
@@ -62,16 +61,6 @@ export async function markFeedScanned(db: DbOrTx, id: string): Promise<void> {
 
 export async function markFeedFailed(db: DbOrTx, id: string): Promise<void> {
   await db.update(feeds).set({ status: 'failed', updatedAt: new Date() }).where(eq(feeds.id, id));
-}
-
-export function insertDiscoveredPages(db: DbOrTx, urls: readonly string[]): Promise<number> {
-  if (urls.length === 0) return Promise.resolve(0);
-  const rows = urls.map((url) => ({
-    id: pageId(url),
-    url,
-    status: 'pending' as const,
-  }));
-  return insertBatched(db, pages, rows);
 }
 
 export function getDefaultDb(): Db {

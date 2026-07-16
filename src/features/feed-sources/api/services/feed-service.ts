@@ -1,10 +1,11 @@
 import type { DiscoveredFeed } from '@/crawl/extractors/types';
 import type { DbOrTx } from '@/db/types';
+import { insertDiscoveredPages } from '@/features/pages/api/services/page-service';
 import { inngest } from '@/inngest/client';
 import { PAGE_CREATED, type PageCreatedData } from '@/inngest/events';
 import { pageId } from '@/lib/url';
 
-import { insertDiscoveredPages, insertFeeds, markFeedScanned } from '../queries';
+import { insertFeeds, markFeedScanned } from '../queries';
 
 // Inngest caps events per send() at 5000 (inngest.com/docs/usage-limits).
 // Large sitemaps (tinhte.vn, genk.vn) return 30k-50k links per fetch — batch.

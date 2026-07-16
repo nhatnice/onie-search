@@ -1,6 +1,6 @@
-import { index, integer, jsonb, pgSchema, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, text, timestamp, unique } from 'drizzle-orm/pg-core';
 
-const crawlerSchema = pgSchema('crawler');
+import { crawlerSchema } from '@/db/crawler-schema';
 
 export const pageStatusEnum = crawlerSchema.enum('page_status', [
   'pending',

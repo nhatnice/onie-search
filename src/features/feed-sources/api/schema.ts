@@ -1,6 +1,6 @@
-import { index, pgSchema, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, text, timestamp } from 'drizzle-orm/pg-core';
 
-const crawlerSchema = pgSchema('crawler');
+import { crawlerSchema } from '@/db/crawler-schema';
 
 export const feedTypeEnum = crawlerSchema.enum('feed_type', [
   'sitemap',

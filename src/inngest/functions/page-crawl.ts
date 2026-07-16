@@ -6,6 +6,7 @@ import {
 } from '@/features/pages/api/services/page-service';
 import { inngest } from '@/inngest/client';
 import { PAGE_CRAWL_FUNCTION_ID, PAGE_CREATED } from '@/inngest/events';
+import { env } from '@/lib/env';
 
 function isPageCrawlInput(value: unknown): value is PageCrawlInput {
   return (
@@ -18,14 +19,12 @@ function isPageCrawlInput(value: unknown): value is PageCrawlInput {
   );
 }
 
-const PAGE_CRAWL_CONCURRENCY = Number(process.env.PAGE_CRAWL_CONCURRENCY) || 50;
-
 export const pageCrawlFunction = inngest.createFunction(
   {
     id: PAGE_CRAWL_FUNCTION_ID,
     triggers: [{ event: PAGE_CREATED }],
     retries: 3,
-    concurrency: { limit: PAGE_CRAWL_CONCURRENCY },
+    concurrency: { limit: env.pageCrawlConcurrency },
     onFailure: async ({ event }) => {
       if (!isPageCrawlInput(event.data)) return;
       await markPageFailed(db, event.data);

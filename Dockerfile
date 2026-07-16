@@ -33,4 +33,4 @@ RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "pnpm run db:migrate && pnpm start"]
+CMD ["sh", "-c", "pnpm start"]

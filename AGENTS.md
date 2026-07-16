@@ -69,10 +69,6 @@ src/
 │   ├── errors.ts          # Postgres SQLSTATE helpers (isUniqueConstraintViolation, ...)
 │   └── index.ts           # Barrel — re-export schema + errors + db client
 │
-├── redis/                 # Redis infrastructure (top-level) — BullMQ connection, cache, pub/sub
-│   ├── client.ts          # IORedis singleton + getRedisConnection()
-│   └── index.ts
-│
 ├── crawl/                 # Crawl infrastructure (top-level) — HTTP fetcher + content parser
 │   ├── adapters/          # CrawlerAdapter implementations (playwright, browserless-content, ...)
 │   ├── extractors/        # Content extractors (html, sitemap, ...)
@@ -86,14 +82,15 @@ src/
 │   ├── dedup.ts           # uploadWithDedup() — SHA-256 check, return existing path nếu trùng
 │   └── index.ts
 │
-├── inngest/               # Inngest event-driven infrastructure (top-level)
+├── inngest/               # Inngest event-driven infrastructure (top-level) — durable functions (queue, cron, retry, fan-out)
 │   ├── client.ts          # Inngest singleton + PortalEvents type
-│   ├── functions/         # inngest.createFunction handlers (page-crawl, ...)
+│   ├── events.ts          # Event name constants + payload types
+│   ├── functions/         # inngest.createFunction handlers (page-crawl, feed-discovery-dispatcher, feed-discovery-worker, ...)
 │   └── index.ts
 │
 ├── runtime/               # Nitro runtime code (top-level) — server-side glue
-│   ├── plugins/           # Nitro plugins (worker bootstrap, lifecycle hooks)
-│   ├── tasks/             # Nitro tasks (cron + manual: db:migrate, crawl:enqueue, ...)
+│   ├── tasks/             # Nitro tasks (manual: db:migrate, db:seed, ...)
+│   ├── routes/            # Nitro server routes (/api/inngest, ...)
 │   └── middleware/        # Server middleware (auth, rate limit, logging — tương lai)
 │
 ├── styles/                # Global CSS, theme tokens
@@ -127,7 +124,7 @@ Quy tắc:
 
 - `queries.ts` nhận `db: DbOrTx` qua param (testable, transaction-composable).
 - Service nhận `db: DbOrTx` qua param, gọi queries, rồi emit event / upload R2 **sau khi DB commit**.
-- Event emit trong service là fire-and-forget (`void inngest.send(...).catch(log)`) — DB write đã commit, Inngest outage không abort.
+- **Bên trong Inngest function** (có `step` param): emit event durable qua `step.sendEvent()` — Inngest checkpoint, retry-safe. Ngoài function (Nitro task, CLI script): `inngest.send()` fire-and-forget, có thể lost nếu crash.
 - Cross-feature: feature A cần ghi vào table của feature B → gọi service của B, KHÔNG import queries/schema của B trực tiếp. VD: `pages` cần insert feeds → gọi `insertFeedLinks` từ `feed-sources/api/services/feed-service`.
 
 ### Object Storage
@@ -304,7 +301,7 @@ src/crawl/policies/noindex.ts   # ✅ crawl policy, infrastructure layer
 
 **Quy tắc:**
 
-1. **Side-effect quyết định layer.** HTTP/DB/Redis I/O → infrastructure (`crawl/`, `db/`, `redis/`). Pure logic → `lib/`.
+1. **Side-effect quyết định layer.** HTTP/DB I/O → infrastructure (`crawl/`, `db/`). Pure logic → `lib/`.
 2. **Folder name = concern + layer.** `lib/filter/` mơ hồ (filter gì? layer nào?). `crawl/policies/` rõ ngay (crawl policy, infrastructure).
 3. **KHÔNG dùng generic names** (`filter/`, `utils/`, `helpers/`, `common/`) — mix concerns khi scale, khó tìm code.
 4. **Barrel export** từ layer root (`crawl/index.ts`) — consumer import 1 chỗ, không cần biết file nội bộ.
@@ -317,7 +314,7 @@ src/crawl/policies/noindex.ts   # ✅ crawl policy, infrastructure layer
 
 **Trước khi setup/config/thêm feature cho bất kỳ framework/library nào, PHẢI đọc docs chính thức trước.**
 
-1. **Đọc docs chính thức** — TanStack Start, Nitro, Drizzle, BullMQ, Vite+. Không dựa vào memory. Không copy-paste config cũ.
+1. **Đọc docs chính thức** — TanStack Start, Nitro, Drizzle, Inngest, Vite+. Không dựa vào memory. Không copy-paste config cũ.
 2. **Kiểm tra version hiện tại** — docs có thể khác giữa versions. Dùng Context7 MCP để fetch docs mới nhất.
 3. **Understand config structure** — biết cái gì là plugin vs top-level option, thứ tự plugin matters không.
 4. **KHÔNG dùng `@ts-expect-error`** để che giấu lỗi type — nếu cần, nghĩa là config sai hoặc thiếu type definitions.
@@ -341,7 +338,7 @@ nitro: { ... }
 Quy tắc:
 
 - `nitro()` **phải** nằm trong `plugins` array, sau `tanstackStart()`.
-- Config (`experimental`, `database`, `scheduledTasks`, `rollupConfig`, `tasks`, `plugins`) truyền vào `nitro()` làm argument.
+- Config (`experimental`, `database`, `rollupConfig`, `tasks`, `routes`) truyền vào `nitro()` làm argument.
 - Tasks ở `src/runtime/tasks/` — **KHÔNG** nằm trong Nitro default scan path (`tasks/` ở root). Phải register thủ công bằng absolute path:
 
   ```ts
@@ -354,11 +351,11 @@ Quy tắc:
       'db:migrate': { handler: resolve(__dirname, 'src/runtime/tasks/db-migrate.ts') },
       ...
     },
-    plugins: [resolve(__dirname, 'src/runtime/plugins/page-crawl-worker.ts')],
   })
   ```
 
 - **KHÔNG** dùng `@ts-expect-error` cho `nitro` property — nếu cần, nghĩa là config sai.
+- **Cron/scheduled tasks** dùng Inngest `triggers: [{ cron: '...' }]` trong function definition (xem `feed-discovery.ts`). KHÔNG dùng `scheduledTasks` (chỉ chạy trong `nitro dev` standalone, không chạy trong Vite+ dev).
 
 ### Chạy Tasks (CLI vs HTTP)
 
@@ -384,9 +381,9 @@ Có 2 cách chạy tasks:
    ```
    - Cần `pnpm dev` chạy song song.
    - Tasks phải được register trong `nitro({ tasks: {...} })`.
-   - Phù hợp: webhook từ external service, scheduled tasks qua cron job gọi HTTP.
+   - Phù hợp: webhook từ external service.
 
-Scheduled tasks (cron) trong `nitro({ scheduledTasks: {...} })` chỉ chạy khi Nitro standalone dev server (`nitro dev`), KHÔNG chạy trong Vite+ dev. Để schedule thực sự, dùng external cron + HTTP endpoint.
+Scheduled tasks (cron) dùng Inngest `triggers: [{ cron: '...' }]` trong function definition — Inngest chạy qua platform, không phụ thuộc Nitro dev server.
 
 <!-- intent-skills:start -->
 

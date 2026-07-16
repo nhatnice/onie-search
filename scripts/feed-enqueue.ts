@@ -1,6 +1,7 @@
 import { db } from '@/db/client';
 import { getFeedsToScan } from '@/features/feed-sources/api/queries';
-import { enqueueFeedDiscoveryJobs } from '@/features/feed-sources/api/queue';
+import { inngest } from '@/inngest/client';
+import { FEED_DISCOVERY_REQUESTED, type FeedDiscoveryRequestedData } from '@/inngest/events';
 
 async function main() {
   const due = await getFeedsToScan(db, 100);
@@ -8,10 +9,12 @@ async function main() {
     console.log('No feeds due');
     return;
   }
-  const { added } = await enqueueFeedDiscoveryJobs(
-    due.map((f) => ({ id: f.id, url: f.url, type: f.type })),
-  );
-  console.log(`Enqueued ${added} of ${due.length} feeds`);
+  const payload = due.map((f) => ({
+    name: FEED_DISCOVERY_REQUESTED,
+    data: { feedId: f.id, url: f.url, type: f.type } satisfies FeedDiscoveryRequestedData,
+  }));
+  const { ids } = await inngest.send(payload);
+  console.log(`Dispatched ${due.length} feeds (event ids: ${ids.length})`);
   process.exit(0);
 }
 

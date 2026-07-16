@@ -10,7 +10,6 @@ function optional(name: string, fallback = ''): string {
 
 export const env = {
   databaseUrl: required('DATABASE_URL'),
-  redisUrl: required('REDIS_URL'),
   seedUrls: optional('SEED_URLS', ''),
   browserlessUrl: required('BROWSERLESS_URL'),
   browserlessToken: required('BROWSERLESS_TOKEN'),

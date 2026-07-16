@@ -11,12 +11,7 @@ import {
 import type { DbOrTx } from '@/db/types';
 import { insertFeedLinks } from '@/features/feed-sources/api/services/feed-service';
 import { inngest } from '@/inngest/client';
-import {
-  PAGE_CREATED,
-  PAGE_CONTENT_CREATED,
-  type PageCreatedData,
-  type PageContentCreatedData,
-} from '@/inngest/events';
+import { PAGE_CONTENT_CREATED, PAGE_CREATED, type PageCreatedData } from '@/inngest/events';
 import { R2ObjectStorage, uploadWithDedup, type ObjectStorage } from '@/storage';
 
 import { extractPage } from '../extract';
@@ -151,10 +146,28 @@ export async function crawlPage(
       blob: upload,
     };
     const out = await saveCrawlResult(db, args);
-    emitPageCreatedEvents(out.newPages);
-    emitPageContentCreated({ pageId: pid, contentId: out.contentId, kind: 'page' });
     console.warn(`[page-crawl] saved    ${Date.now() - t0}ms url=${url}`);
-    return { contentId: out.contentId };
+    return { contentId: out.contentId, newPages: out.newPages };
+  });
+
+  // Durable event emission inside the function: step.sendEvent is checkpointed
+  // by Inngest so events survive process crashes between DB commit and send.
+  await step.sendEvent('emit-page-created', {
+    name: PAGE_CREATED,
+    data: { pageId: pid, url },
+  });
+  if (saveResult.newPages.length > 0) {
+    await step.sendEvent(
+      'emit-new-pages',
+      saveResult.newPages.map((r) => ({
+        name: PAGE_CREATED,
+        data: { pageId: r.id, url: r.url } satisfies PageCreatedData,
+      })),
+    );
+  }
+  await step.sendEvent('emit-page-content-created', {
+    name: PAGE_CONTENT_CREATED,
+    data: { pageId: pid, contentId: saveResult.contentId, kind: 'page' as const },
   });
 
   return { pageId: pid, status: 'ok', contentId: saveResult.contentId };
@@ -167,23 +180,19 @@ export async function markPageFailed(db: DbOrTx, input: PageCrawlInput): Promise
 
 export async function seedPages(db: DbOrTx, urls: string[]): Promise<{ inserted: number }> {
   const rows = await insertSeedPages(db, urls);
-  emitPageCreatedEvents(rows);
+  // Called from Nitro task (no Inngest step available). Fire-and-forget is OK
+  // here — seed is a rare manual path; if event lost, re-run db:seed.
+  emitSeedPageCreatedFireForget(rows);
   return { inserted: rows.length };
 }
 
-function emitPageCreatedEvents(rows: ReadonlyArray<{ id: string; url: string }>): void {
+function emitSeedPageCreatedFireForget(rows: ReadonlyArray<{ id: string; url: string }>): void {
   if (rows.length === 0) return;
   const payload = rows.map((r) => ({
     name: PAGE_CREATED,
     data: { pageId: r.id, url: r.url } satisfies PageCreatedData,
   }));
   void inngest.send(payload).catch((err) => {
-    console.error('[page-service] emit page.created failed', err);
+    console.error('[page-service] emit seed page.created failed', err);
   });
-}
-
-function emitPageContentCreated(data: PageContentCreatedData): void {
-  void inngest
-    .send({ name: PAGE_CONTENT_CREATED, data })
-    .catch((err) => console.error('[page-service] emit page-content.created failed', err));
 }

@@ -13,3 +13,4 @@ Embed nội dung web đã crawl.
 - [ ] Event driven -> Khi có url mới được tạo -> push vào queue.
 - [ ] Event driven -> Khi có page mới được crawl -> push vào queue để adapter get url
 - [ ] List các chỗ đang dùng bull mq hiện tại -> Chuyển các phần cần thiết qua Event driven Inngest
+- [ ] GetDB, setup lại các chỗ input db vào hàm. Đang boilerplate.

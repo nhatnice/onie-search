@@ -85,9 +85,6 @@ export default defineConfig({
           options: { url: process.env.DATABASE_URL },
         },
       },
-      scheduledTasks: {
-        '*/5 * * * *': ['feed:enqueue'],
-      },
       rollupConfig: {
         external: ['playwright', 'playwright-core', 'jsdom'],
       },
@@ -104,15 +101,10 @@ export default defineConfig({
           handler: resolve(rootDir, 'src/runtime/tasks/db-seed.ts'),
           description: 'Insert seed URLs from SEED_URLS env var (comma-separated) into pages table',
         },
-        'feed:enqueue': {
-          handler: resolve(rootDir, 'src/runtime/tasks/feed-enqueue.ts'),
-          description: 'Scan feeds due for scanning and push to feed-discovery queue',
-        },
       },
       routes: {
         '/api/inngest': resolve(rootDir, 'src/runtime/routes/inngest.ts'),
       },
-      plugins: [resolve(rootDir, 'src/runtime/plugins/feed-discovery-worker.ts')],
     }),
     stylex.vite({
       dev: process.env.NODE_ENV === 'development',

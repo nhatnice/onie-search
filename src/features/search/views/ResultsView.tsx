@@ -720,6 +720,14 @@ const styles = stylex.create({
   clarityInputWrapper: {
     flex: 1,
   },
+  segmentTitle: {
+    fontSize: '1.125rem',
+    fontWeight: '700',
+    color: '#1d1d1f',
+    margin: '0.25rem 0 0.5rem 0',
+    lineHeight: '1.4',
+    letterSpacing: '-0.01em',
+  },
 });
 
 // ---------------------------------------------------------
@@ -1470,6 +1478,11 @@ export function ResultsView() {
                             <span>&bull;</span>
                             <span>Tác giả: {currentContent.source.author || 'Nguồn tin'}</span>
                           </div>
+
+                          {/* Unique content title */}
+                          {currentContent.title && (
+                            <h3 {...stylex.props(styles.segmentTitle)}>{currentContent.title}</h3>
+                          )}
 
                           {/* Markdown extracted content text */}
                           <div {...stylex.props(styles.markdownContainer)}>

@@ -33,6 +33,7 @@ export interface SourceData {
 
 export interface SectionContentItem {
   source: SourceData;
+  title?: string;
   content: string;
   chart?: ChartData;
 }
@@ -434,6 +435,7 @@ ${result.text}
         for (const sec of extractedSections) {
           sectionsMap[sec.type].contents.push({
             source,
+            title: sec.title,
             content: sec.content,
             chart: sec.chart,
           });
@@ -520,6 +522,7 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
               author: results[0]?.author,
               favicon: resolveFavicon(results[0]?.url || 'https://example.com'),
             },
+            title: `Tổng quan về bối cảnh thị trường ${query}`,
             content: results[0]?.text || `Dữ liệu giả lập về tổng quan chủ đề ${query}.`,
           },
         ],
@@ -540,6 +543,7 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
               author: results[1]?.author,
               favicon: resolveFavicon(results[1]?.url || 'https://example.com'),
             },
+            title: `Báo cáo số liệu tăng trưởng và doanh thu dự kiến`,
             content: results[1]?.text || `Chi tiết phân tích về số liệu tăng trưởng của ${query}.`,
             chart: {
               type: 'line',
@@ -567,6 +571,7 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
               author: results[2]?.author,
               favicon: resolveFavicon(results[2]?.url || 'https://example.com'),
             },
+            title: `Đánh giá rủi ro pháp lý và cạnh tranh thị trường`,
             content: results[2]?.text || `Các rủi ro và cảnh báo về thị trường ${query}.`,
           },
         ],
@@ -587,6 +592,7 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
               author: results[3]?.author,
               favicon: resolveFavicon(results[3]?.url || 'https://example.com'),
             },
+            title: `Tóm tắt kết luận và bài học kinh nghiệm`,
             content: results[3]?.text || `Kết luận chung về chủ đề ${query}.`,
           },
         ],

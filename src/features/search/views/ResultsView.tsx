@@ -1,14 +1,25 @@
-import { Markdown, Dialog, Layout, LayoutContent, TextInput, Button } from '@astryxdesign/core';
+import {
+  Markdown,
+  Dialog,
+  Layout,
+  LayoutContent,
+  TextInput,
+  Button,
+  ToggleButton,
+} from '@astryxdesign/core';
 import * as stylex from '@stylexjs/stylex';
 import { useLoaderData, useNavigate } from '@tanstack/react-router';
 import {
-  ThumbsUpIcon,
-  ThumbsDownIcon,
-  ArrowLeftIcon,
+  ArrowRightIcon,
   CalendarIcon,
   ExternalLinkIcon,
-  XIcon,
   Loader2Icon,
+  SearchIcon,
+  MessageCircleQuestionMarkIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
+  UserIcon,
+  XIcon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -60,9 +71,9 @@ const styles = stylex.create({
     position: 'sticky',
     top: 0,
     zIndex: 100,
-    display: 'flex',
+    display: 'grid',
+    gridTemplateColumns: '1fr auto 1fr',
     alignItems: 'center',
-    justifyContent: 'space-between',
     padding: '1rem 2rem',
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     backdropFilter: 'blur(20px)',
@@ -83,7 +94,6 @@ const styles = stylex.create({
     height: '36px',
     borderRadius: '8px',
     objectFit: 'cover',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
   },
   logoTitle: {
     fontSize: '1.125rem',
@@ -93,8 +103,9 @@ const styles = stylex.create({
     margin: 0,
   },
   searchForm: {
-    flex: 1,
-    maxWidth: '520px',
+    width: '100%',
+    maxWidth: '800px',
+    justifySelf: 'center',
     display: 'flex',
     gap: '0.5rem',
     alignItems: 'center',
@@ -106,44 +117,16 @@ const styles = stylex.create({
   searchBarInput: {
     width: '100%',
   },
-  searchButton: {
-    padding: '0.625rem 1.25rem',
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: '#ffffff',
-    backgroundColor: '#0066cc',
-    border: 'none',
-    borderRadius: '9999px',
-    cursor: 'pointer',
-    transition: 'background-color 150ms',
-    ':hover': {
-      backgroundColor: '#004f9e',
-    },
+  searchIconButton: {
+    padding: '0.5rem',
   },
-  backButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.875rem',
-    fontWeight: '500',
-    color: '#86868b',
-    border: 'none',
-    background: 'none',
-    cursor: 'pointer',
-    padding: '0.5rem 1rem',
-    borderRadius: '9999px',
-    transition: 'background-color 150ms, color 150ms',
-    ':hover': {
-      backgroundColor: '#e8e8ed',
-      color: '#1d1d1f',
-    },
-  },
+
   contentWrapper: {
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
     gap: '2rem',
     width: '100%',
-    maxWidth: '800px',
+    maxWidth: '1060px',
     margin: '2rem auto 0 auto',
     padding: '0 1.5rem',
     boxSizing: 'border-box',
@@ -159,6 +142,20 @@ const styles = stylex.create({
     lineHeight: '1.5',
     color: '#1d1d1f',
     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)',
+  },
+  mainContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2rem',
+    flex: 1,
+    maxWidth: '800px',
+  },
+  sidebar: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2rem',
+    width: '260px',
+    flexShrink: 0,
   },
   aiSectionCard: {
     backgroundColor: '#ffffff',
@@ -188,7 +185,7 @@ const styles = stylex.create({
   activeTabPanel: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '1.25rem',
+    gap: '0.75rem',
     minHeight: '120px',
   },
   sourceMeta: {
@@ -227,55 +224,10 @@ const styles = stylex.create({
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: '#f3f4f6',
-    paddingTop: '1rem',
-    marginTop: '0.5rem',
+    paddingTop: '0.5rem',
+    marginTop: '0.25rem',
   },
-  voteContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-    backgroundColor: '#f5f5f7',
-    borderRadius: '9999px',
-    padding: '0.25rem 0.5rem',
-  },
-  voteButton: {
-    border: 'none',
-    background: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '4px',
-    borderRadius: '50%',
-    color: '#86868b',
-    transition: 'background-color 150ms, color 150ms',
-    ':hover': {
-      backgroundColor: '#e8e8ed',
-      color: '#1d1d1f',
-    },
-  },
-  voteButtonActiveUp: {
-    color: '#ff4500',
-    ':hover': {
-      color: '#ff4500',
-    },
-  },
-  voteButtonActiveDown: {
-    color: '#7193ff',
-    ':hover': {
-      color: '#7193ff',
-    },
-  },
-  voteScore: {
-    fontSize: '0.8125rem',
-    fontWeight: '600',
-    color: '#1d1d1f',
-    minWidth: '20px',
-    textAlign: 'center',
-  },
+
   viewOriginalButton: {
     display: 'flex',
     alignItems: 'center',
@@ -294,44 +246,7 @@ const styles = stylex.create({
       textDecoration: 'underline',
     },
   },
-  followUpsContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.625rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: '#f3f4f6',
-    paddingTop: '1rem',
-    marginTop: '0.5rem',
-  },
-  followUpsTitle: {
-    fontSize: '0.8125rem',
-    fontWeight: '600',
-    color: '#86868b',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  },
-  followUpsList: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-  },
-  followUpItem: {
-    padding: '0.5rem 1rem',
-    fontSize: '0.8125rem',
-    color: '#0066cc',
-    backgroundColor: '#f5f5f7',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#e8e8ed',
-    borderRadius: '9999px',
-    cursor: 'pointer',
-    transition: 'background-color 150ms, border-color 150ms',
-    ':hover': {
-      backgroundColor: '#e8e8ed',
-      borderColor: '#d2d2d7',
-    },
-  },
+
   googleResultsContainer: {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
@@ -532,7 +447,7 @@ const styles = stylex.create({
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
     borderTopColor: '#e5e7eb',
-    margin: '1rem 0',
+    margin: '0.75rem 0',
   },
   sourceToggleButtonGroup: {
     display: 'flex',
@@ -575,30 +490,20 @@ const styles = stylex.create({
     borderRadius: '50%',
     objectFit: 'cover',
   },
-  voteButtonWithText: {
-    gap: '0.375rem',
-    padding: '4px 10px',
-    borderRadius: '9999px',
-  },
-  voteButtonText: {
-    fontSize: '0.8125rem',
-    fontWeight: '500',
-  },
-  voteDivider: {
-    width: '1px',
-    height: '14px',
-    backgroundColor: '#d2d2d7',
-    margin: '0 0.25rem',
-  },
+
   followUpContainer: {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.75rem',
-    marginTop: '1.25rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: '#f3f4f6',
-    paddingTop: '1.25rem',
+    marginTop: '0.75rem',
+    paddingTop: '0.75rem',
+  },
+  followUpButton: {
+    whiteSpace: 'normal',
+    height: 'auto',
+    minHeight: '32px',
+    textAlign: 'left',
+    wordBreak: 'break-word',
   },
   followUpTitle: {
     fontSize: '0.8125rem',
@@ -607,118 +512,16 @@ const styles = stylex.create({
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
   },
-  followUpList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  followUpButton: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '0.625rem 1rem',
-    borderRadius: '8px',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#d2d2d7',
-    backgroundColor: '#ffffff',
-    color: '#0066cc',
-    fontSize: '0.875rem',
-    fontWeight: '500',
-    textAlign: 'left',
-    cursor: 'pointer',
-    transition: 'all 150ms ease',
-    ':hover': {
-      backgroundColor: '#f5f5f7',
-      borderColor: '#86868b',
-    },
-  },
-  clarityCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: '16px',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#e5e7eb',
-    padding: '2.5rem',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem',
-    alignItems: 'center',
-    maxWidth: '600px',
-    margin: '4rem auto',
-  },
-  clarityTitle: {
-    fontSize: '1.5rem',
-    fontWeight: '700',
-    color: '#1d1d1f',
-    margin: 0,
-    letterSpacing: '-0.02em',
-    textAlign: 'center',
-  },
-  claritySubtitle: {
-    fontSize: '0.9375rem',
-    color: '#86868b',
-    lineHeight: '1.5',
-    textAlign: 'center',
-  },
-  clarityOptions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
+
+  exploreButton: {
+    justifyContent: 'flex-start',
     width: '100%',
-    marginTop: '1rem',
-  },
-  clarityOptionButton: {
-    width: '100%',
-    textAlign: 'left',
-    padding: '1.25rem 1.5rem',
-    backgroundColor: '#f5f5f7',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#d2d2d7',
-    borderRadius: '12px',
-    fontSize: '1rem',
-    fontWeight: '600',
-    color: '#1d1d1f',
-    cursor: 'pointer',
-    transition: 'all 200ms ease',
-    ':hover': {
-      backgroundColor: '#e8e8ed',
-      borderColor: '#86868b',
-      transform: 'translateY(-1px)',
-    },
-  },
-  clarityDivider: {
-    display: 'flex',
-    alignItems: 'center',
-    width: '100%',
-    color: '#86868b',
-    fontSize: '0.8125rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    gap: '1rem',
-    margin: '1rem 0',
-    ':before': {
-      content: '""',
-      flex: 1,
-      height: '1px',
-      backgroundColor: '#e5e7eb',
-    },
-    ':after': {
-      content: '""',
-      flex: 1,
-      height: '1px',
-      backgroundColor: '#e5e7eb',
-    },
   },
   clarityForm: {
     display: 'flex',
     gap: '0.75rem',
     width: '100%',
     alignItems: 'center',
-  },
-  clarityInputWrapper: {
-    flex: 1,
   },
   segmentTitle: {
     fontSize: '1.125rem',
@@ -1215,7 +1018,8 @@ export function ResultsView() {
     };
   }, [drawerOpen, drawerData]);
 
-  const handleBack = () => {
+  const handleBack = (e: React.MouseEvent) => {
+    e.preventDefault();
     void navigate({ to: '/' });
   };
 
@@ -1307,14 +1111,14 @@ export function ResultsView() {
       <header {...stylex.props(styles.header)}>
         <a href="/" onClick={handleBack} {...stylex.props(styles.headerLeft)}>
           <img
-            src="/logo.png"
-            alt="Portal Logo"
+            src="/logo.svg"
+            alt="OVE Logo"
             width={36}
             height={36}
             style={{ maxHeight: '36px', width: 'auto', objectFit: 'contain' }}
             {...stylex.props(styles.logoMini)}
           />
-          <h1 {...stylex.props(styles.logoTitle)}>PORTAL</h1>
+          <h1 {...stylex.props(styles.logoTitle)}>OVE</h1>
         </a>
 
         <form onSubmit={handleNewSearch} {...stylex.props(styles.searchForm)}>
@@ -1329,15 +1133,14 @@ export function ResultsView() {
               xstyle={styles.searchBarInput}
             />
           </div>
-          <button type="submit" {...stylex.props(styles.searchButton)}>
-            Tìm kiếm
-          </button>
+          <Button
+            icon={<SearchIcon size={16} />}
+            variant="primary"
+            type="submit"
+            xstyle={styles.searchIconButton}
+            label={''}
+          />
         </form>
-
-        <button onClick={handleBack} {...stylex.props(styles.backButton)}>
-          <ArrowLeftIcon size={16} />
-          Trang chủ
-        </button>
       </header>
 
       <div {...stylex.props(styles.contentWrapper)}>
@@ -1345,9 +1148,7 @@ export function ResultsView() {
           <div {...stylex.props(styles.loadingContainer)}>
             <div {...stylex.props(styles.spinnerWrapper)}>
               <Loader2Icon size={36} {...stylex.props(styles.spinner)} />
-              <div {...stylex.props(styles.spinnerText)}>
-                Đang phân tích trí tuệ nhân tạo & tìm kiếm...
-              </div>
+              <div {...stylex.props(styles.spinnerText)}>Đang tìm kiếm...</div>
             </div>
             {[1, 2, 3].map((i) => (
               <div key={i} {...stylex.props(styles.skeletonCard)}>
@@ -1368,294 +1169,301 @@ export function ResultsView() {
           <div {...stylex.props(styles.errorContainer)}>
             Có lỗi xảy ra khi tải kết quả tìm kiếm. Vui lòng thử lại sau.
           </div>
-        ) : results?.clarity && !results.clarity.isClear ? (
-          <div {...stylex.props(styles.clarityCard)}>
-            <h2 {...stylex.props(styles.clarityTitle)}>Làm rõ mục tiêu tìm kiếm</h2>
-            <p {...stylex.props(styles.claritySubtitle)}>
-              Truy vấn &ldquo;<strong>{q}</strong>&rdquo; chưa đủ cụ thể để tìm kiếm. Vui lòng chọn
-              một trong các gợi ý dưới đây hoặc nhập chủ đề cụ thể của bạn:
-            </p>
-
-            <div {...stylex.props(styles.clarityOptions)}>
-              {results.clarity.options?.map((option, idx) => {
-                const cleanedOption = option.replace(/^(Về\s+)?chủ\s+đề:\s*/i, '');
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      const composed = getComposedQuery(q || '', cleanedOption);
-                      void navigate({
-                        to: '/search',
-                        search: { q: composed },
-                      });
-                    }}
-                    {...stylex.props(styles.clarityOptionButton)}
-                  >
-                    {cleanedOption}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div {...stylex.props(styles.clarityDivider)}>Hoặc nhập chủ đề khác</div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (customQuery.trim()) {
-                  const composed = getComposedQuery(q || '', customQuery);
-                  void navigate({
-                    to: '/search',
-                    search: { q: composed },
-                  });
-                }
-              }}
-              {...stylex.props(styles.clarityForm)}
-            >
-              <div style={{ flex: 1 }}>
-                <TextInput
-                  type="text"
-                  value={customQuery}
-                  onChange={(val) => setCustomQuery(val)}
-                  label="Chủ đề khác"
-                  isLabelHidden={true}
-                  placeholder="Nhập chủ đề tìm kiếm cụ thể của bạn..."
-                  xstyle={styles.searchBarInput}
-                />
-              </div>
-              <Button label="Tìm kiếm" variant="primary" type="submit" />
-            </form>
-          </div>
         ) : (
           <>
-            {/* Notice of Search query / Case demonstration */}
-            <div {...stylex.props(styles.infoAlert)}>
-              {caseNum ? (
-                <div>
-                  Đang xem Demo <strong>Case #{caseNum}</strong>: &ldquo;{q}&rdquo;. Sử dụng dữ liệu
-                  giả lập trực quan hóa cao cấp (Apple & Reddit Style).
+            <div {...stylex.props(styles.mainContent)}>
+              {/* Notice of Search query / Case demonstration */}
+              {caseNum && (
+                <div {...stylex.props(styles.infoAlert)}>
+                  <div>
+                    Đang xem Demo <strong>Case #{caseNum}</strong>: &ldquo;{q}&rdquo;. Sử dụng dữ
+                    liệu giả lập trực quan hóa cao cấp (Apple & Reddit Style).
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 1: AI analysis layout */}
+              {results &&
+              results.analysis &&
+              results.analysis.data &&
+              results.analysis.data.length > 0 ? (
+                <div {...stylex.props(styles.aiAnalysisSingleCard)}>
+                  {results.analysis.data.map((section, sectionIdx) => {
+                    const sectionKey = `${section.type}-${sectionIdx}`;
+                    const activeIdx = activeTabs[sectionKey] || 0;
+                    const currentContent = section.contents[activeIdx] || section.contents[0];
+                    const voteKey = `${sectionKey}-${activeIdx}`;
+                    const currentVote = getVoteState(voteKey);
+
+                    return (
+                      <div
+                        key={sectionKey}
+                        style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                      >
+                        {sectionIdx > 0 && <hr {...stylex.props(styles.sectionDivider)} />}
+
+                        <section
+                          style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                        >
+                          <h2 {...stylex.props(styles.sectionTitle)}>{section.title}</h2>
+
+                          {/* Toggle Button Group for Sources */}
+                          <div {...stylex.props(styles.sourceToggleButtonGroup)}>
+                            {section.contents.map((item, idx) => {
+                              const isActive = idx === activeIdx;
+                              const faviconUrl =
+                                item.source.favicon || resolveFavicon(item.source.url);
+                              return (
+                                <button
+                                  key={item.source.url + '-' + idx}
+                                  type="button"
+                                  onClick={() => handleTabChange(sectionKey, idx)}
+                                  {...stylex.props(
+                                    styles.sourceToggleButton,
+                                    isActive && styles.sourceToggleButtonActive,
+                                  )}
+                                >
+                                  <img
+                                    src={faviconUrl}
+                                    alt=""
+                                    {...stylex.props(styles.sourceToggleFavicon)}
+                                    onError={(e) => {
+                                      e.currentTarget.src =
+                                        'https://www.google.com/s2/favicons?domain=example.com&sz=64';
+                                    }}
+                                  />
+                                  <span>
+                                    {item.source.author || new URL(item.source.url).hostname}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Active tab content panel */}
+                          <div {...stylex.props(styles.activeTabPanel)}>
+                            {/* Meta information of source */}
+                            <div {...stylex.props(styles.sourceMeta)}>
+                              {currentContent.source.publishedDate && (
+                                <>
+                                  <CalendarIcon size={12} />
+                                  <span>
+                                    Xuất bản:{' '}
+                                    {new Date(
+                                      currentContent.source.publishedDate,
+                                    ).toLocaleDateString()}
+                                  </span>
+                                  <span>&bull;</span>
+                                </>
+                              )}
+                              {currentContent.source.url && (
+                                <>
+                                  <UserIcon size={12} />
+                                  <span>Tác giả: {currentContent.source.author}</span>
+                                </>
+                              )}
+                            </div>
+
+                            {/* Unique content title */}
+                            {/* {currentContent.title && currentContent.title !== section.title && (
+                            <h3 {...stylex.props(styles.segmentTitle)}>{currentContent.title}</h3>
+                          )} */}
+
+                            {/* Markdown extracted content text */}
+                            <div {...stylex.props(styles.markdownContainer)}>
+                              <Markdown>{currentContent.content}</Markdown>
+                            </div>
+
+                            {/* Custom Dynamic Chart Rendering */}
+                            {currentContent.chart && (
+                              <div {...stylex.props(styles.chartContainer)}>
+                                <h4 {...stylex.props(styles.chartTitle)}>
+                                  Biểu đồ trực quan ({currentContent.chart.type})
+                                </h4>
+                                <SearchChart chart={currentContent.chart} />
+                              </div>
+                            )}
+
+                            {/* Card Footer Interaction Bar */}
+                            <div {...stylex.props(styles.sectionFooter)}>
+                              <div
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              >
+                                <ToggleButton
+                                  label="Hữu ích"
+                                  icon={<ThumbsUpIcon size={14} />}
+                                  pressedIcon={
+                                    <ThumbsUpIcon size={14} style={{ color: '#0066cc' }} />
+                                  }
+                                  isPressed={currentVote.userVote === 'up'}
+                                  onPressedChange={() => handleVote(voteKey, 'up')}
+                                />
+                                <ToggleButton
+                                  label="Không hữu ích"
+                                  icon={<ThumbsDownIcon size={14} />}
+                                  pressedIcon={
+                                    <ThumbsDownIcon size={14} style={{ color: '#ff3b30' }} />
+                                  }
+                                  isPressed={currentVote.userVote === 'down'}
+                                  onPressedChange={() => handleVote(voteKey, 'down')}
+                                  isIconOnly
+                                />
+                              </div>
+
+                              {/* View source detail trigger button */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDrawer(currentContent)}
+                                {...stylex.props(styles.viewOriginalButton)}
+                              >
+                                <ExternalLinkIcon size={14} />
+                                Xem nội dung gốc
+                              </button>
+                            </div>
+
+                            {/* Suggestion / Follow Up Questions List */}
+                            {section.followUpQuestions && section.followUpQuestions.length > 0 && (
+                              <div {...stylex.props(styles.followUpContainer)}>
+                                <span {...stylex.props(styles.followUpTitle)}>Câu hỏi gợi ý</span>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                  {section.followUpQuestions.map((question, qIdx) => (
+                                    <Button
+                                      key={qIdx}
+                                      variant="secondary"
+                                      label={question}
+                                      icon={<MessageCircleQuestionMarkIcon size={16} />}
+                                      onClick={() => handleSearchQuestion(question)}
+                                      xstyle={styles.followUpButton}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </section>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
-                <div>
-                  Kết quả phân tích trí tuệ nhân tạo và tìm kiếm cho từ khóa: &ldquo;
-                  <strong>{q}</strong>&rdquo;
+                <div {...stylex.props(styles.noResults)}>Không tìm thấy phân tích của AI.</div>
+              )}
+
+              {/* SECTION 2: Standard search list layout (Google style) */}
+              {results && results.results && results.results.length > 0 ? (
+                <section {...stylex.props(styles.googleResultsContainer)}>
+                  <h3 {...stylex.props(styles.googleTitle)}>Kết quả tìm kiếm liên quan</h3>
+                  <div {...stylex.props(styles.googleList)}>
+                    {results.results.map((item) => {
+                      const displayAuthor = item.author || new URL(item.url).hostname;
+                      const faviconUrl = resolveFavicon(item.url);
+
+                      return (
+                        <article key={item.id} {...stylex.props(styles.googleItem)}>
+                          <div {...stylex.props(styles.googleItemHeader)}>
+                            <img
+                              src={faviconUrl}
+                              alt=""
+                              {...stylex.props(styles.googleItemFavicon)}
+                              onError={(e) => {
+                                e.currentTarget.src =
+                                  'https://www.google.com/s2/favicons?domain=example.com&sz=64';
+                              }}
+                            />
+                            <span>{displayAuthor}</span>
+                            {item.publishedDate && (
+                              <span>
+                                &bull; {new Date(item.publishedDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            {...stylex.props(styles.googleItemTitle)}
+                          >
+                            {item.title || item.url}
+                          </a>
+                          {item.text && (
+                            <p {...stylex.props(styles.googleItemSnippet)}>
+                              {item.text.length > 250
+                                ? item.text.substring(0, 250) + '...'
+                                : item.text}
+                            </p>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : (
+                <div {...stylex.props(styles.noResults)}>
+                  Không có kết quả tìm kiếm tiêu chuẩn liên quan.
                 </div>
               )}
             </div>
 
-            {/* SECTION 1: AI analysis layout */}
-            {results &&
-            results.analysis &&
-            results.analysis.data &&
-            results.analysis.data.length > 0 ? (
-              <div {...stylex.props(styles.aiAnalysisSingleCard)}>
-                {results.analysis.data.map((section, sectionIdx) => {
-                  const sectionKey = `${section.type}-${sectionIdx}`;
-                  const activeIdx = activeTabs[sectionKey] || 0;
-                  const currentContent = section.contents[activeIdx] || section.contents[0];
-                  const voteKey = `${sectionKey}-${activeIdx}`;
-                  const currentVote = getVoteState(voteKey);
-
-                  return (
+            {results?.clarity?.isClear &&
+              results?.clarity?.options &&
+              results.clarity.options.length > 0 && (
+                <div {...stylex.props(styles.sidebar)}>
+                  <div {...stylex.props(styles.aiSectionCard)}>
+                    <span {...stylex.props(styles.followUpTitle)}>Khám phá thêm</span>
                     <div
-                      key={sectionKey}
-                      style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                        width: '100%',
+                      }}
                     >
-                      {sectionIdx > 0 && <hr {...stylex.props(styles.sectionDivider)} />}
-
-                      <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <h2 {...stylex.props(styles.sectionTitle)}>{section.title}</h2>
-
-                        {/* Toggle Button Group for Sources */}
-                        <div {...stylex.props(styles.sourceToggleButtonGroup)}>
-                          {section.contents.map((item, idx) => {
-                            const isActive = idx === activeIdx;
-                            const faviconUrl =
-                              item.source.favicon || resolveFavicon(item.source.url);
-                            return (
-                              <button
-                                key={item.source.url + '-' + idx}
-                                type="button"
-                                onClick={() => handleTabChange(sectionKey, idx)}
-                                {...stylex.props(
-                                  styles.sourceToggleButton,
-                                  isActive && styles.sourceToggleButtonActive,
-                                )}
-                              >
-                                <img
-                                  src={faviconUrl}
-                                  alt=""
-                                  {...stylex.props(styles.sourceToggleFavicon)}
-                                  onError={(e) => {
-                                    e.currentTarget.src =
-                                      'https://www.google.com/s2/favicons?domain=example.com&sz=64';
-                                  }}
-                                />
-                                <span>
-                                  {item.source.author || new URL(item.source.url).hostname}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Active tab content panel */}
-                        <div {...stylex.props(styles.activeTabPanel)}>
-                          {/* Meta information of source */}
-                          <div {...stylex.props(styles.sourceMeta)}>
-                            <CalendarIcon size={12} />
-                            <span>
-                              Xuất bản:{' '}
-                              {currentContent.source.publishedDate
-                                ? new Date(currentContent.source.publishedDate).toLocaleDateString()
-                                : 'Không rõ ngày'}
-                            </span>
-                            <span>&bull;</span>
-                            <span>Tác giả: {currentContent.source.author || 'Nguồn tin'}</span>
-                          </div>
-
-                          {/* Unique content title */}
-                          {currentContent.title && currentContent.title !== section.title && (
-                            <h3 {...stylex.props(styles.segmentTitle)}>{currentContent.title}</h3>
-                          )}
-
-                          {/* Markdown extracted content text */}
-                          <div {...stylex.props(styles.markdownContainer)}>
-                            <Markdown>{currentContent.content}</Markdown>
-                          </div>
-
-                          {/* Custom Dynamic Chart Rendering */}
-                          {currentContent.chart && (
-                            <div {...stylex.props(styles.chartContainer)}>
-                              <h4 {...stylex.props(styles.chartTitle)}>
-                                Biểu đồ trực quan ({currentContent.chart.type})
-                              </h4>
-                              <SearchChart chart={currentContent.chart} />
-                            </div>
-                          )}
-
-                          {/* Card Footer Interaction Bar */}
-                          <div {...stylex.props(styles.sectionFooter)}>
-                            {/* Upvote & Downvote Widget */}
-                            <div {...stylex.props(styles.voteContainer)}>
-                              <button
-                                type="button"
-                                onClick={() => handleVote(voteKey, 'up')}
-                                {...stylex.props(
-                                  styles.voteButton,
-                                  styles.voteButtonWithText,
-                                  currentVote.userVote === 'up' && styles.voteButtonActiveUp,
-                                )}
-                                aria-label="Upvote"
-                              >
-                                <ThumbsUpIcon size={14} />
-                                <span {...stylex.props(styles.voteButtonText)}>Hữu ích</span>
-                              </button>
-                              <div {...stylex.props(styles.voteDivider)} />
-                              <button
-                                type="button"
-                                onClick={() => handleVote(voteKey, 'down')}
-                                {...stylex.props(
-                                  styles.voteButton,
-                                  currentVote.userVote === 'down' && styles.voteButtonActiveDown,
-                                )}
-                                aria-label="Downvote"
-                              >
-                                <ThumbsDownIcon size={14} />
-                              </button>
-                            </div>
-
-                            {/* View source detail trigger button */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDrawer(currentContent)}
-                              {...stylex.props(styles.viewOriginalButton)}
-                            >
-                              <ExternalLinkIcon size={14} />
-                              Xem nội dung gốc
-                            </button>
-                          </div>
-
-                          {/* Suggestion / Follow Up Questions List */}
-                          {section.followUpQuestions && section.followUpQuestions.length > 0 && (
-                            <div {...stylex.props(styles.followUpContainer)}>
-                              <span {...stylex.props(styles.followUpTitle)}>Câu hỏi gợi ý</span>
-                              <div {...stylex.props(styles.followUpList)}>
-                                {section.followUpQuestions.map((question, qIdx) => (
-                                  <button
-                                    key={qIdx}
-                                    type="button"
-                                    onClick={() => handleSearchQuestion(question)}
-                                    {...stylex.props(styles.followUpButton)}
-                                  >
-                                    {question}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </section>
+                      {results.clarity.options.map((option, idx) => (
+                        <Button
+                          key={idx}
+                          variant="secondary"
+                          label={option}
+                          endContent={<ArrowRightIcon size={16} />}
+                          onClick={() => {
+                            const composed = getComposedQuery(q || '', option);
+                            void navigate({ to: '/search', search: { q: composed } });
+                          }}
+                          xstyle={styles.exploreButton}
+                        />
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div {...stylex.props(styles.noResults)}>Không tìm thấy phân tích của AI.</div>
-            )}
-
-            {/* SECTION 2: Standard search list layout (Google style) */}
-            {results && results.results && results.results.length > 0 ? (
-              <section {...stylex.props(styles.googleResultsContainer)}>
-                <h3 {...stylex.props(styles.googleTitle)}>Kết quả tìm kiếm liên quan</h3>
-                <div {...stylex.props(styles.googleList)}>
-                  {results.results.map((item) => {
-                    const displayAuthor = item.author || new URL(item.url).hostname;
-                    const faviconUrl = resolveFavicon(item.url);
-
-                    return (
-                      <article key={item.id} {...stylex.props(styles.googleItem)}>
-                        <div {...stylex.props(styles.googleItemHeader)}>
-                          <img
-                            src={faviconUrl}
-                            alt=""
-                            {...stylex.props(styles.googleItemFavicon)}
-                            onError={(e) => {
-                              e.currentTarget.src =
-                                'https://www.google.com/s2/favicons?domain=example.com&sz=64';
-                            }}
-                          />
-                          <span>{displayAuthor}</span>
-                          {item.publishedDate && (
-                            <span>&bull; {new Date(item.publishedDate).toLocaleDateString()}</span>
-                          )}
-                        </div>
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          {...stylex.props(styles.googleItemTitle)}
-                        >
-                          {item.title || item.url}
-                        </a>
-                        {item.text && (
-                          <p {...stylex.props(styles.googleItemSnippet)}>
-                            {item.text.length > 250
-                              ? item.text.substring(0, 250) + '...'
-                              : item.text}
-                          </p>
-                        )}
-                      </article>
-                    );
-                  })}
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (customQuery.trim()) {
+                          const composed = getComposedQuery(q || '', customQuery);
+                          void navigate({ to: '/search', search: { q: composed } });
+                        }
+                      }}
+                      {...stylex.props(styles.clarityForm)}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <TextInput
+                          type="text"
+                          value={customQuery}
+                          onChange={(val) => setCustomQuery(val)}
+                          label="Tìm kiếm"
+                          isLabelHidden={true}
+                          placeholder="Nhập nội dung muốn tìm hiểu thêm..."
+                          xstyle={styles.searchBarInput}
+                        />
+                      </div>
+                      <Button
+                        icon={<SearchIcon size={16} />}
+                        variant="primary"
+                        type="submit"
+                        xstyle={styles.searchIconButton}
+                        label={''}
+                      />
+                    </form>
+                  </div>
                 </div>
-              </section>
-            ) : (
-              <div {...stylex.props(styles.noResults)}>
-                Không có kết quả tìm kiếm tiêu chuẩn liên quan.
-              </div>
-            )}
+              )}
           </>
         )}
       </div>

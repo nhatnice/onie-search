@@ -11,7 +11,7 @@ export class FetchCrawlerAdapter implements CrawlerAdapter {
     const started = Date.now();
     const res = await fetch(url, {
       redirect: 'follow',
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; portal-crawler/1.0)' },
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; ove-crawler/1.0)' },
     });
     const headers: Record<string, string> = {};
     res.headers.forEach((v, k) => {

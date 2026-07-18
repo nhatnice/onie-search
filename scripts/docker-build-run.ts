@@ -33,7 +33,7 @@ function run(cmd: string, args: string[]): Promise<void> {
 }
 
 async function main() {
-  const image = 'portal:local';
+  const image = 'ove:local';
   console.log('=== Building ===');
   await run('docker', ['build', '-t', image, '.']);
   console.log('\n=== Running ===');

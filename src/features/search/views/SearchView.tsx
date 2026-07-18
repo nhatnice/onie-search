@@ -1,6 +1,7 @@
 import { TextInput, Button } from '@astryxdesign/core';
 import * as stylex from '@stylexjs/stylex';
 import { useNavigate } from '@tanstack/react-router';
+import { SearchIcon } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 
 import { SearchContainer } from '../components/SearchContainer';
@@ -25,16 +26,7 @@ const styles = stylex.create({
     maxHeight: '64px',
     width: 'auto',
     borderRadius: '12px',
-    marginBottom: '1.25rem',
     objectFit: 'contain',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-  },
-  logoText: {
-    fontSize: '2.25rem',
-    fontWeight: '700',
-    letterSpacing: '-0.02em',
-    color: '#1d1d1f',
-    margin: 0,
   },
   logoSubtext: {
     fontSize: '1rem',
@@ -44,6 +36,9 @@ const styles = stylex.create({
   },
   searchBarInput: {
     width: '100%',
+  },
+  searchIconButton: {
+    padding: '0.5rem',
   },
   searchForm: {
     width: '100%',
@@ -57,30 +52,6 @@ const styles = stylex.create({
     display: 'flex',
     gap: '0.75rem',
     alignItems: 'center',
-  },
-  quickSearchSection: {
-    marginTop: '3rem',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '1rem',
-    width: '100%',
-  },
-  quickSearchTitle: {
-    fontSize: '0.8125rem',
-    fontWeight: '500',
-    color: '#86868b',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  },
-  quickButtonsContainer: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: '0.625rem',
-  },
-  quickButton: {
-    borderRadius: '9999px',
   },
 });
 
@@ -96,13 +67,6 @@ export function SearchView() {
         search: { q: query.trim() },
       });
     }
-  };
-
-  const handleQuickSearch = (caseNum: number) => {
-    void navigate({
-      to: '/search',
-      search: { case: String(caseNum) },
-    });
   };
 
   return (
@@ -127,17 +91,14 @@ export function SearchView() {
           {...stylex.props(styles.logoSection)}
         >
           <img
-            src="/logo.png"
-            alt="Portal Logo"
+            src="/logo.svg"
+            alt="OVE Logo"
             width={64}
             height={64}
             style={{ maxHeight: '64px', width: 'auto', objectFit: 'contain' }}
             {...stylex.props(styles.logoImage)}
           />
-          <h1 {...stylex.props(styles.logoText)}>PORTAL</h1>
-          <span {...stylex.props(styles.logoSubtext)}>
-            Tìm kiếm thông tin thị trường thông minh
-          </span>
+          <span {...stylex.props(styles.logoSubtext)}>Search everything. Own your universe.</span>
         </div>
 
         <form
@@ -171,62 +132,16 @@ export function SearchView() {
                 xstyle={styles.searchBarInput}
               />
             </div>
-            <Button label="Tìm kiếm" variant="primary" type="submit" size="lg" />
+            <Button
+              icon={<SearchIcon size={20} />}
+              variant="primary"
+              type="submit"
+              size="lg"
+              xstyle={styles.searchIconButton}
+              label={''}
+            />
           </div>
         </form>
-
-        <div
-          style={{
-            marginTop: '3rem',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '1rem',
-            width: '100%',
-          }}
-          {...stylex.props(styles.quickSearchSection)}
-        >
-          <span
-            style={{
-              fontSize: '0.8125rem',
-              fontWeight: '500',
-              color: '#86868b',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}
-            {...stylex.props(styles.quickSearchTitle)}
-          >
-            Tìm nhanh case demo
-          </span>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              gap: '0.625rem',
-            }}
-            {...stylex.props(styles.quickButtonsContainer)}
-          >
-            <Button
-              label="Case 1: Thị trường kim cương"
-              variant="secondary"
-              onClick={() => handleQuickSearch(1)}
-              xstyle={styles.quickButton}
-            />
-            <Button
-              label="Case 2: Giá vàng biến động"
-              variant="secondary"
-              onClick={() => handleQuickSearch(2)}
-              xstyle={styles.quickButton}
-            />
-            <Button
-              label="Case 3: Dự báo công nghệ AI"
-              variant="secondary"
-              onClick={() => handleQuickSearch(3)}
-              xstyle={styles.quickButton}
-            />
-          </div>
-        </div>
       </SearchContainer>
     </main>
   );

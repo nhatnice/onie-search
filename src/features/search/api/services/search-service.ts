@@ -132,6 +132,7 @@ Quy tắc phân loại:
    - Bạn cần trả về:
      - clarifiedGoal: Mô tả rõ ràng mục tiêu tìm kiếm của người dùng (Goal) bằng tiếng Việt.
      - searchKeywords: Danh sách 1-3 từ khóa/câu tìm kiếm được tối ưu hóa để gửi đến công cụ tìm kiếm (Semantic Search).
+     - options: 2-3 câu hỏi / chủ đề gợi ý mở rộng, đào sâu hơn về cùng chủ đề, giúp người dùng có hướng khám phá thêm thông tin chi tiết. Mỗi gợi ý phải là một câu truy vấn tìm kiếm hoàn chỉnh (Ví dụ: "Tác động của giá dầu đến thị trường chứng khoán Mỹ 2025", "Dự đoán giá vàng tuần tới dựa trên biến động USD"). TUYỆT ĐỐI KHÔNG chứa tiền tố "Về chủ đề:" hoặc "Chủ đề:".
 
 2. CHƯA ĐỦ RÕ RÀNG (isClear = false):
    - Truy vấn quá ngắn, chỉ là danh từ chung chung, mơ hồ, không có ngữ cảnh rõ ràng.
@@ -150,7 +151,7 @@ Trả về kết quả theo định dạng JSON.
       model: modelFn(env.openaiModel, { structuredOutputs: false }),
       schema: z.object({
         isClear: z.boolean(),
-        options: z.array(z.string()).optional(),
+        options: z.array(z.string()),
         clarifiedGoal: z.string().optional(),
         searchKeywords: z.array(z.string()).optional(),
       }),
@@ -234,22 +235,23 @@ Lưu ý quan trọng:
   return undefined;
 }
 
-export async function searchExa(query: string, isDemo = false): Promise<SearchResponseData> {
-  // Step 1: Verify Query Clarity (unless isDemo is true)
+export async function searchExa(query: string, _isDemo = false): Promise<SearchResponseData> {
+  // Step 1: Verify Query Clarity
   let clarityResult: ClarityResult = {
     isClear: true,
     clarifiedGoal: query,
     searchKeywords: [query],
   };
 
-  if (!isDemo && isAiConfigured) {
+  if (isAiConfigured) {
     clarityResult = await checkQueryClarity(query, isAiConfigured, customOpenAI);
-    if (!clarityResult.isClear) {
-      return {
-        clarity: clarityResult,
-        results: [],
-      };
-    }
+  }
+
+  if (!clarityResult.options || clarityResult.options.length === 0) {
+    clarityResult.options = [
+      `${query} — Phân tích chi tiết và xu hướng mới nhất`,
+      `${query} — Tác động và rủi ro cần lưu ý`,
+    ];
   }
 
   const clarifiedGoal = clarityResult.clarifiedGoal || query;

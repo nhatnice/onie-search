@@ -1,4 +1,4 @@
-import { Markdown, Dialog, Layout, LayoutContent, TextInput } from '@astryxdesign/core';
+import { Markdown, Dialog, Layout, LayoutContent, TextInput, Button } from '@astryxdesign/core';
 import * as stylex from '@stylexjs/stylex';
 import { useLoaderData, useNavigate } from '@tanstack/react-router';
 import {
@@ -632,6 +632,94 @@ const styles = stylex.create({
       borderColor: '#86868b',
     },
   },
+  clarityCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#e5e7eb',
+    padding: '2.5rem',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+    alignItems: 'center',
+    maxWidth: '600px',
+    margin: '4rem auto',
+  },
+  clarityTitle: {
+    fontSize: '1.5rem',
+    fontWeight: '700',
+    color: '#1d1d1f',
+    margin: 0,
+    letterSpacing: '-0.02em',
+    textAlign: 'center',
+  },
+  claritySubtitle: {
+    fontSize: '0.9375rem',
+    color: '#86868b',
+    lineHeight: '1.5',
+    textAlign: 'center',
+  },
+  clarityOptions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    width: '100%',
+    marginTop: '1rem',
+  },
+  clarityOptionButton: {
+    width: '100%',
+    textAlign: 'left',
+    padding: '1.25rem 1.5rem',
+    backgroundColor: '#f5f5f7',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#d2d2d7',
+    borderRadius: '12px',
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: '#1d1d1f',
+    cursor: 'pointer',
+    transition: 'all 200ms ease',
+    ':hover': {
+      backgroundColor: '#e8e8ed',
+      borderColor: '#86868b',
+      transform: 'translateY(-1px)',
+    },
+  },
+  clarityDivider: {
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%',
+    color: '#86868b',
+    fontSize: '0.8125rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    gap: '1rem',
+    margin: '1rem 0',
+    ':before': {
+      content: '""',
+      flex: 1,
+      height: '1px',
+      backgroundColor: '#e5e7eb',
+    },
+    ':after': {
+      content: '""',
+      flex: 1,
+      height: '1px',
+      backgroundColor: '#e5e7eb',
+    },
+  },
+  clarityForm: {
+    display: 'flex',
+    gap: '0.75rem',
+    width: '100%',
+    alignItems: 'center',
+  },
+  clarityInputWrapper: {
+    flex: 1,
+  },
 });
 
 // ---------------------------------------------------------
@@ -986,6 +1074,7 @@ export function ResultsView() {
   const { caseNum, q } = useLoaderData({ from: '/search' });
 
   const [newQuery, setNewQuery] = useState(q || '');
+  const [customQuery, setCustomQuery] = useState('');
   const [results, setResults] = useState<SearchResponseData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
@@ -1022,6 +1111,7 @@ export function ResultsView() {
   useEffect(() => {
     let isMounted = true;
     setNewQuery(q || '');
+    setCustomQuery('');
 
     const fetchData = async () => {
       let searchQuery = q || '';
@@ -1048,7 +1138,7 @@ export function ResultsView() {
       }
 
       try {
-        const data = await $searchExa({ data: searchQuery });
+        const data = await $searchExa({ data: { query: searchQuery, isDemo: !!caseNum } });
         if (isMounted) {
           setResults(data);
         }
@@ -1239,6 +1329,60 @@ export function ResultsView() {
         ) : error ? (
           <div {...stylex.props(styles.errorContainer)}>
             Có lỗi xảy ra khi tải kết quả tìm kiếm. Vui lòng thử lại sau.
+          </div>
+        ) : results?.clarity && !results.clarity.isClear ? (
+          <div {...stylex.props(styles.clarityCard)}>
+            <h2 {...stylex.props(styles.clarityTitle)}>Làm rõ mục tiêu tìm kiếm</h2>
+            <p {...stylex.props(styles.claritySubtitle)}>
+              Truy vấn &ldquo;<strong>{q}</strong>&rdquo; chưa đủ cụ thể để tìm kiếm. Vui lòng chọn
+              một trong các gợi ý dưới đây hoặc nhập chủ đề cụ thể của bạn:
+            </p>
+
+            <div {...stylex.props(styles.clarityOptions)}>
+              {results.clarity.options?.map((option, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    void navigate({
+                      to: '/search',
+                      search: { q: option },
+                    });
+                  }}
+                  {...stylex.props(styles.clarityOptionButton)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+
+            <div {...stylex.props(styles.clarityDivider)}>Hoặc nhập chủ đề khác</div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (customQuery.trim()) {
+                  void navigate({
+                    to: '/search',
+                    search: { q: customQuery.trim() },
+                  });
+                }
+              }}
+              {...stylex.props(styles.clarityForm)}
+            >
+              <div style={{ flex: 1 }}>
+                <TextInput
+                  type="text"
+                  value={customQuery}
+                  onChange={(val) => setCustomQuery(val)}
+                  label="Chủ đề khác"
+                  isLabelHidden={true}
+                  placeholder="Nhập chủ đề tìm kiếm cụ thể của bạn..."
+                  xstyle={styles.searchBarInput}
+                />
+              </div>
+              <Button label="Tìm kiếm" variant="primary" type="submit" />
+            </form>
           </div>
         ) : (
           <>

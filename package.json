@@ -1,5 +1,5 @@
 {
-  "name": "portal",
+  "name": "ove",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -26,6 +26,7 @@
     "inngest:dev": "pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.15",
     "@astryxdesign/core": "0.1.4",
     "@astryxdesign/theme-neutral": "0.1.4",
     "@aws-sdk/client-s3": "^3.1086.0",
@@ -33,14 +34,17 @@
     "@stylexjs/stylex": "0.18.3",
     "@tanstack/react-router": "1.170.17",
     "@tanstack/react-start": "1.168.27",
+    "ai": "^7.0.30",
     "bullmq": "^5.80.3",
     "dayjs": "1.11.21",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "eventemitter2": "^6.4.9",
+    "exa-js": "^2.16.0",
     "ioredis": "^5.11.1",
     "jsdom": "^29.1.1",
+    "lucide-react": "^1.24.0",
     "normalize-url": "^9.0.1",
     "pg": "^8.22.0",
     "playwright-core": "1.61.1",

@@ -20,4 +20,8 @@ export const env = {
   r2Bucket: required('R2_BUCKET'),
   r2PublicUrl: required('R2_PUBLIC_URL'),
   redisUrl: optional('REDIS_URL', 'redis://localhost:6379'),
+  exaApiKey: optional('EXA_API_KEY', ''),
+  openaiApiKey: optional('OPENAI_API_KEY', ''),
+  openaiBaseUrl: optional('OPENAI_BASE_URL', ''),
+  openaiModel: optional('OPENAI_MODEL', 'gpt-4o-mini'),
 } as const;

@@ -10,7 +10,6 @@ import {
 import * as stylex from '@stylexjs/stylex';
 import { useLoaderData, useNavigate } from '@tanstack/react-router';
 import {
-  ArrowRightIcon,
   CalendarIcon,
   ExternalLinkIcon,
   SearchIcon,
@@ -987,6 +986,7 @@ function SearchChart({ chart }: { chart: ChartData }) {
   );
 }
 
+// oxlint-disable-next-line no-unused-vars
 function getComposedQuery(originalQuery: string, newSelectionOrInput: string): string {
   const orig = originalQuery.trim();
   let next = newSelectionOrInput.trim();
@@ -1017,6 +1017,7 @@ export function ResultsView() {
   const { caseNum, q } = useLoaderData({ from: '/search' });
 
   const [newQuery, setNewQuery] = useState(q || '');
+  // oxlint-disable-next-line no-unused-vars
   const [customQuery, setCustomQuery] = useState('');
   const [results, setResults] = useState<SearchResponseData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1594,7 +1595,7 @@ export function ResultsView() {
               )}
             </div>
 
-            {results?.clarity?.isClear &&
+            {/* {results?.clarity?.isClear &&
               results?.clarity?.options &&
               results.clarity.options.length > 0 && (
                 <div {...stylex.props(styles.sidebar)}>
@@ -1653,7 +1654,7 @@ export function ResultsView() {
                     </form>
                   </div>
                 </div>
-              )}
+              )} */}
           </>
         )}
       </div>

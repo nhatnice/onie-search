@@ -1,12 +1,4 @@
-import {
-  TabList,
-  Tab,
-  Markdown,
-  Dialog,
-  Layout,
-  LayoutContent,
-  TextInput,
-} from '@astryxdesign/core';
+import { Markdown, Dialog, Layout, LayoutContent, TextInput } from '@astryxdesign/core';
 import * as stylex from '@stylexjs/stylex';
 import { useLoaderData, useNavigate } from '@tanstack/react-router';
 import {
@@ -523,63 +515,239 @@ const styles = stylex.create({
     fontSize: '0.9375rem',
     textAlign: 'center',
   },
+  aiAnalysisSingleCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#e5e7eb',
+    padding: '2rem',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2.5rem',
+  },
+  sectionDivider: {
+    border: 'none',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: '#e5e7eb',
+    margin: '1rem 0',
+  },
+  sourceToggleButtonGroup: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    width: '100%',
+    maxWidth: '100%',
+    margin: '0.5rem 0',
+  },
+  sourceToggleButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#d2d2d7',
+    backgroundColor: '#ffffff',
+    color: '#1d1d1f',
+    fontSize: '0.8125rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 150ms ease',
+    ':hover': {
+      backgroundColor: '#f5f5f7',
+      borderColor: '#86868b',
+    },
+  },
+  sourceToggleButtonActive: {
+    backgroundColor: '#e8f2ff',
+    borderColor: '#0066cc',
+    color: '#0066cc',
+    fontWeight: '600',
+    boxShadow: '0 2px 8px rgba(0, 102, 204, 0.1)',
+  },
+  sourceToggleFavicon: {
+    width: '16px',
+    height: '16px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+  },
+  voteButtonWithText: {
+    gap: '0.375rem',
+    padding: '4px 10px',
+    borderRadius: '9999px',
+  },
+  voteButtonText: {
+    fontSize: '0.8125rem',
+    fontWeight: '500',
+  },
+  voteDivider: {
+    width: '1px',
+    height: '14px',
+    backgroundColor: '#d2d2d7',
+    margin: '0 0.25rem',
+  },
+  followUpContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    marginTop: '1.25rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: '#f3f4f6',
+    paddingTop: '1.25rem',
+  },
+  followUpTitle: {
+    fontSize: '0.8125rem',
+    fontWeight: '600',
+    color: '#86868b',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  followUpList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  followUpButton: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0.625rem 1rem',
+    borderRadius: '8px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#d2d2d7',
+    backgroundColor: '#ffffff',
+    color: '#0066cc',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    textAlign: 'left',
+    cursor: 'pointer',
+    transition: 'all 150ms ease',
+    ':hover': {
+      backgroundColor: '#f5f5f7',
+      borderColor: '#86868b',
+    },
+  },
 });
 
 // ---------------------------------------------------------
 // Helper: Text Highlighter
 // ---------------------------------------------------------
+function stripMarkdown(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(\*|_)(.*?)\1/g, '$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#+\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+}
+
+function findWordSequenceIndex(
+  text: string,
+  words: string[],
+  fromIndex = 0,
+): { index: number; length: number } | null {
+  if (words.length === 0) return null;
+  const escapedWords = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const patternStr = escapedWords.join('.{0,40}?');
+  try {
+    const regex = new RegExp(patternStr, 'iu');
+    const subText = text.substring(fromIndex);
+    const match = regex.exec(subText);
+    if (match) {
+      return {
+        index: fromIndex + match.index,
+        length: match[0].length,
+      };
+    }
+  } catch {
+    // Fallback if regex fails
+  }
+  return null;
+}
+
 function getHighlightedMarkdown(fullText: string, searchSnippet: string): string {
   if (!fullText) return '';
   if (!searchSnippet) return fullText;
 
-  const cleanSnippet = searchSnippet.trim().replace(/\s+/g, ' ');
-  const cleanFull = fullText.replace(/\s+/g, ' ');
+  const cleanSnippet = stripMarkdown(searchSnippet).trim();
 
-  const index = cleanFull.indexOf(cleanSnippet);
-  if (index !== -1) {
-    const words = cleanSnippet.split(' ');
-    const startAnchor = words.slice(0, 5).join(' ');
-    const endAnchor = words.slice(-5).join(' ');
+  // Extract unicode words from the clean snippet
+  const words = cleanSnippet
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0);
 
-    const startIdx = fullText.indexOf(startAnchor);
-    const endIdx = fullText.indexOf(endAnchor, startIdx !== -1 ? startIdx : 0);
+  if (words.length === 0) return fullText;
 
-    if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
-      const matchText = fullText.substring(startIdx, endIdx + endAnchor.length);
-      const before = fullText.substring(0, startIdx);
-      const after = fullText.substring(startIdx + matchText.length);
-      return `${before}<mark id="highlight-target" class="highlighted">${matchText}</mark>${after}`;
+  // For short snippets, search the entire sequence
+  if (words.length <= 8) {
+    const match = findWordSequenceIndex(fullText, words);
+    if (match) {
+      const before = fullText.substring(0, match.index);
+      const matchedText = fullText.substring(match.index, match.index + match.length);
+      const after = fullText.substring(match.index + match.length);
+      return `${before}<mark id="highlight-target" class="highlighted">${matchedText}</mark>${after}`;
+    }
+  } else {
+    // For longer snippets, search using start and end anchors
+    const startWords = words.slice(0, 5);
+    const endWords = words.slice(-5);
+
+    const startMatch = findWordSequenceIndex(fullText, startWords);
+    if (startMatch) {
+      const endMatch = findWordSequenceIndex(
+        fullText,
+        endWords,
+        startMatch.index + startMatch.length,
+      );
+      if (endMatch) {
+        const matchEnd = endMatch.index + endMatch.length;
+        const before = fullText.substring(0, startMatch.index);
+        const matchedText = fullText.substring(startMatch.index, matchEnd);
+        const after = fullText.substring(matchEnd);
+        return `${before}<mark id="highlight-target" class="highlighted">${matchedText}</mark>${after}`;
+      } else {
+        const snippetLength = cleanSnippet.length;
+        const matchEnd = Math.min(startMatch.index + snippetLength, fullText.length);
+        const before = fullText.substring(0, startMatch.index);
+        const matchedText = fullText.substring(startMatch.index, matchEnd);
+        const after = fullText.substring(matchEnd);
+        return `${before}<mark id="highlight-target" class="highlighted">${matchedText}</mark>${after}`;
+      }
     }
   }
 
-  // Fallback 1: First 40 characters
-  const startShort = searchSnippet.substring(0, 40).trim();
+  // Fallback: search for first 40 chars literally
+  const startShort = cleanSnippet.substring(0, 40).trim();
   const startIdx = fullText.indexOf(startShort);
   if (startIdx !== -1) {
-    const endPos = Math.min(startIdx + searchSnippet.length, fullText.length);
+    const endPos = Math.min(startIdx + cleanSnippet.length, fullText.length);
     const matchText = fullText.substring(startIdx, endPos);
     const before = fullText.substring(0, startIdx);
     const after = fullText.substring(endPos);
     return `${before}<mark id="highlight-target" class="highlighted">${matchText}</mark>${after}`;
   }
 
-  // Fallback 2: first long paragraph line
-  const lines = searchSnippet
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 10);
-  if (lines.length > 0) {
-    const lineIdx = fullText.indexOf(lines[0]);
-    if (lineIdx !== -1) {
-      const matchText = lines[0];
-      const before = fullText.substring(0, lineIdx);
-      const after = fullText.substring(lineIdx + matchText.length);
-      return `${before}<mark id="highlight-target" class="highlighted">${matchText}</mark>${after}`;
-    }
-  }
-
   return fullText;
 }
+
+const highlightPlugin = {
+  pattern: /<mark id="highlight-target" class="highlighted">([\s\S]*?)<\/mark>/g,
+  render: (match: RegExpMatchArray, key: string) => (
+    <mark key={key} id="highlight-target" className="highlighted">
+      {match[1]}
+    </mark>
+  ),
+};
 
 // ---------------------------------------------------------
 // Component: Custom SVG Charts
@@ -933,6 +1101,13 @@ export function ResultsView() {
     }
   };
 
+  const handleSearchQuestion = (question: string) => {
+    void navigate({
+      to: '/search',
+      search: { q: question.trim() },
+    });
+  };
+
   const handleTabChange = (sectionType: string, index: number) => {
     setActiveTabs((prev) => ({
       ...prev,
@@ -993,7 +1168,13 @@ export function ResultsView() {
   };
 
   return (
-    <main {...stylex.props(styles.page)}>
+    <main
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#f5f5f7',
+      }}
+      {...stylex.props(styles.page)}
+    >
       {/* Sticky Apple-like Top Bar */}
       <header {...stylex.props(styles.header)}>
         <a href="/" onClick={handleBack} {...stylex.props(styles.headerLeft)}>
@@ -1081,118 +1262,152 @@ export function ResultsView() {
             results.analysis &&
             results.analysis.data &&
             results.analysis.data.length > 0 ? (
-              results.analysis.data.map((section) => {
-                const activeIdx = activeTabs[section.type] || 0;
-                const currentContent = section.contents[activeIdx] || section.contents[0];
-                const voteKey = `${section.type}-${activeIdx}`;
-                const currentVote = getVoteState(voteKey);
+              <div {...stylex.props(styles.aiAnalysisSingleCard)}>
+                {results.analysis.data.map((section, sectionIdx) => {
+                  const activeIdx = activeTabs[section.type] || 0;
+                  const currentContent = section.contents[activeIdx] || section.contents[0];
+                  const voteKey = `${section.type}-${activeIdx}`;
+                  const currentVote = getVoteState(voteKey);
 
-                return (
-                  <section key={section.type} {...stylex.props(styles.aiSectionCard)}>
-                    <h2 {...stylex.props(styles.sectionTitle)}>{section.title}</h2>
+                  return (
+                    <div
+                      key={section.type}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                    >
+                      {sectionIdx > 0 && <hr {...stylex.props(styles.sectionDivider)} />}
 
-                    {/* Sources Tabs List */}
-                    <div {...stylex.props(styles.sourceTabContainer)}>
-                      <TabList
-                        value={String(activeIdx)}
-                        onChange={(val) => handleTabChange(section.type, Number(val))}
-                        layout="hug"
-                        size="sm"
-                      >
-                        {section.contents.map((item, idx) => (
-                          <Tab
-                            key={item.source.url + '-' + idx}
-                            value={String(idx)}
-                            label={item.source.author || new URL(item.source.url).hostname}
-                            icon={
-                              <img
-                                src={item.source.favicon}
-                                alt=""
-                                {...stylex.props(styles.googleItemFavicon)}
-                                onError={(e) => {
-                                  e.currentTarget.src =
-                                    'https://www.google.com/s2/favicons?domain=example.com&sz=64';
-                                }}
-                              />
-                            }
-                          />
-                        ))}
-                      </TabList>
-                    </div>
+                      <section style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <h2 {...stylex.props(styles.sectionTitle)}>{section.title}</h2>
 
-                    {/* Active tab content panel */}
-                    <div {...stylex.props(styles.activeTabPanel)}>
-                      {/* Meta information of source */}
-                      <div {...stylex.props(styles.sourceMeta)}>
-                        <CalendarIcon size={12} />
-                        <span>
-                          Xuất bản:{' '}
-                          {currentContent.source.publishedDate
-                            ? new Date(currentContent.source.publishedDate).toLocaleDateString()
-                            : 'Không rõ ngày'}
-                        </span>
-                        <span>&bull;</span>
-                        <span>Tác giả: {currentContent.source.author || 'Nguồn tin'}</span>
-                      </div>
-
-                      {/* Markdown extracted content text */}
-                      <div {...stylex.props(styles.markdownContainer)}>
-                        <Markdown>{currentContent.content}</Markdown>
-                      </div>
-
-                      {/* Custom Dynamic Chart Rendering */}
-                      {currentContent.chart && (
-                        <div {...stylex.props(styles.chartContainer)}>
-                          <h4 {...stylex.props(styles.chartTitle)}>
-                            Biểu đồ trực quan ({currentContent.chart.type})
-                          </h4>
-                          <SearchChart chart={currentContent.chart} />
-                        </div>
-                      )}
-
-                      {/* Card Footer Interaction Bar */}
-                      <div {...stylex.props(styles.sectionFooter)}>
-                        {/* Upvote & Downvote Widget */}
-                        <div {...stylex.props(styles.voteContainer)}>
-                          <button
-                            type="button"
-                            onClick={() => handleVote(voteKey, 'up')}
-                            {...stylex.props(
-                              styles.voteButton,
-                              currentVote.userVote === 'up' && styles.voteButtonActiveUp,
-                            )}
-                            aria-label="Upvote"
-                          >
-                            <ThumbsUpIcon size={14} />
-                          </button>
-                          <span {...stylex.props(styles.voteScore)}>{currentVote.score}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleVote(voteKey, 'down')}
-                            {...stylex.props(
-                              styles.voteButton,
-                              currentVote.userVote === 'down' && styles.voteButtonActiveDown,
-                            )}
-                            aria-label="Downvote"
-                          >
-                            <ThumbsDownIcon size={14} />
-                          </button>
+                        {/* Toggle Button Group for Sources */}
+                        <div {...stylex.props(styles.sourceToggleButtonGroup)}>
+                          {section.contents.map((item, idx) => {
+                            const isActive = idx === activeIdx;
+                            const faviconUrl =
+                              item.source.favicon || resolveFavicon(item.source.url);
+                            return (
+                              <button
+                                key={item.source.url + '-' + idx}
+                                type="button"
+                                onClick={() => handleTabChange(section.type, idx)}
+                                {...stylex.props(
+                                  styles.sourceToggleButton,
+                                  isActive && styles.sourceToggleButtonActive,
+                                )}
+                              >
+                                <img
+                                  src={faviconUrl}
+                                  alt=""
+                                  {...stylex.props(styles.sourceToggleFavicon)}
+                                  onError={(e) => {
+                                    e.currentTarget.src =
+                                      'https://www.google.com/s2/favicons?domain=example.com&sz=64';
+                                  }}
+                                />
+                                <span>
+                                  {item.source.author || new URL(item.source.url).hostname}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
 
-                        {/* View source detail trigger button */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDrawer(currentContent)}
-                          {...stylex.props(styles.viewOriginalButton)}
-                        >
-                          <ExternalLinkIcon size={14} />
-                          Xem nội dung gốc
-                        </button>
-                      </div>
+                        {/* Active tab content panel */}
+                        <div {...stylex.props(styles.activeTabPanel)}>
+                          {/* Meta information of source */}
+                          <div {...stylex.props(styles.sourceMeta)}>
+                            <CalendarIcon size={12} />
+                            <span>
+                              Xuất bản:{' '}
+                              {currentContent.source.publishedDate
+                                ? new Date(currentContent.source.publishedDate).toLocaleDateString()
+                                : 'Không rõ ngày'}
+                            </span>
+                            <span>&bull;</span>
+                            <span>Tác giả: {currentContent.source.author || 'Nguồn tin'}</span>
+                          </div>
+
+                          {/* Markdown extracted content text */}
+                          <div {...stylex.props(styles.markdownContainer)}>
+                            <Markdown>{currentContent.content}</Markdown>
+                          </div>
+
+                          {/* Custom Dynamic Chart Rendering */}
+                          {currentContent.chart && (
+                            <div {...stylex.props(styles.chartContainer)}>
+                              <h4 {...stylex.props(styles.chartTitle)}>
+                                Biểu đồ trực quan ({currentContent.chart.type})
+                              </h4>
+                              <SearchChart chart={currentContent.chart} />
+                            </div>
+                          )}
+
+                          {/* Card Footer Interaction Bar */}
+                          <div {...stylex.props(styles.sectionFooter)}>
+                            {/* Upvote & Downvote Widget */}
+                            <div {...stylex.props(styles.voteContainer)}>
+                              <button
+                                type="button"
+                                onClick={() => handleVote(voteKey, 'up')}
+                                {...stylex.props(
+                                  styles.voteButton,
+                                  styles.voteButtonWithText,
+                                  currentVote.userVote === 'up' && styles.voteButtonActiveUp,
+                                )}
+                                aria-label="Upvote"
+                              >
+                                <ThumbsUpIcon size={14} />
+                                <span {...stylex.props(styles.voteButtonText)}>Hữu ích</span>
+                              </button>
+                              <div {...stylex.props(styles.voteDivider)} />
+                              <button
+                                type="button"
+                                onClick={() => handleVote(voteKey, 'down')}
+                                {...stylex.props(
+                                  styles.voteButton,
+                                  currentVote.userVote === 'down' && styles.voteButtonActiveDown,
+                                )}
+                                aria-label="Downvote"
+                              >
+                                <ThumbsDownIcon size={14} />
+                              </button>
+                            </div>
+
+                            {/* View source detail trigger button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDrawer(currentContent)}
+                              {...stylex.props(styles.viewOriginalButton)}
+                            >
+                              <ExternalLinkIcon size={14} />
+                              Xem nội dung gốc
+                            </button>
+                          </div>
+
+                          {/* Suggestion / Follow Up Questions List */}
+                          {section.followUpQuestions && section.followUpQuestions.length > 0 && (
+                            <div {...stylex.props(styles.followUpContainer)}>
+                              <span {...stylex.props(styles.followUpTitle)}>Câu hỏi gợi ý</span>
+                              <div {...stylex.props(styles.followUpList)}>
+                                {section.followUpQuestions.map((question, qIdx) => (
+                                  <button
+                                    key={qIdx}
+                                    type="button"
+                                    onClick={() => handleSearchQuestion(question)}
+                                    {...stylex.props(styles.followUpButton)}
+                                  >
+                                    {question}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </section>
                     </div>
-                  </section>
-                );
-              })
+                  );
+                })}
+              </div>
             ) : (
               <div {...stylex.props(styles.noResults)}>Không tìm thấy phân tích của AI.</div>
             )}
@@ -1345,7 +1560,7 @@ export function ResultsView() {
                 }}
               >
                 {drawerData && (
-                  <Markdown>
+                  <Markdown inlinePlugins={[highlightPlugin]}>
                     {getHighlightedMarkdown(drawerData.fullText, drawerData.content)}
                   </Markdown>
                 )}

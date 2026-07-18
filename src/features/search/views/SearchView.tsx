@@ -106,7 +106,16 @@ export function SearchView() {
   };
 
   return (
-    <main {...stylex.props(styles.page)}>
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fbfbfd',
+      }}
+      {...stylex.props(styles.page)}
+    >
       <SearchContainer>
         <div {...stylex.props(styles.logoSection)}>
           <img

@@ -1451,14 +1451,15 @@ export function ResultsView() {
             results.analysis.data.length > 0 ? (
               <div {...stylex.props(styles.aiAnalysisSingleCard)}>
                 {results.analysis.data.map((section, sectionIdx) => {
-                  const activeIdx = activeTabs[section.type] || 0;
+                  const sectionKey = `${section.type}-${sectionIdx}`;
+                  const activeIdx = activeTabs[sectionKey] || 0;
                   const currentContent = section.contents[activeIdx] || section.contents[0];
-                  const voteKey = `${section.type}-${activeIdx}`;
+                  const voteKey = `${sectionKey}-${activeIdx}`;
                   const currentVote = getVoteState(voteKey);
 
                   return (
                     <div
-                      key={section.type}
+                      key={sectionKey}
                       style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
                     >
                       {sectionIdx > 0 && <hr {...stylex.props(styles.sectionDivider)} />}
@@ -1476,7 +1477,7 @@ export function ResultsView() {
                               <button
                                 key={item.source.url + '-' + idx}
                                 type="button"
-                                onClick={() => handleTabChange(section.type, idx)}
+                                onClick={() => handleTabChange(sectionKey, idx)}
                                 {...stylex.props(
                                   styles.sourceToggleButton,
                                   isActive && styles.sourceToggleButtonActive,
@@ -1515,7 +1516,7 @@ export function ResultsView() {
                           </div>
 
                           {/* Unique content title */}
-                          {currentContent.title && (
+                          {currentContent.title && currentContent.title !== section.title && (
                             <h3 {...stylex.props(styles.segmentTitle)}>{currentContent.title}</h3>
                           )}
 

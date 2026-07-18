@@ -350,7 +350,7 @@ Bạn là một AI phân tích thông tin chuyên nghiệp. Hãy phân tích k�
 
 Hãy trích xuất các phân đoạn nội dung nổi bật nhất của trang này, phân loại chúng vào các nhóm phù hợp:
 1. "overview": Tổng quan chủ đề, giới thiệu chung liên quan đến Goal.
-2. "article": Nội dung cốt lõi, bài viết chuyên sâu, số liệu, chi tiết nổi bật.
+2. "article": Các nội dung unique, nổi bật, đặc biệt, mang tính làm rõ, phân tích sâu, cung cấp thông tin chi tiết liên quan trực tiếp đến câu hỏi tìm kiếm của người dùng.
 3. "critique": Ý kiến phản biện, rủi ro, cảnh báo, nhược điểm, hoặc các góc nhìn trái chiều.
 4. "conclusion": Kết luận, tóm tắt cuối bài, bài học kinh nghiệm, hoặc khuyến nghị hành động.
 
@@ -361,6 +361,7 @@ BẮT BUỘC TUÂN THỦ NGHIÊM NGẶC CÁC QUY TẮC LỌC VÀ TRÍCH XUẤT S
 - LỌC BỎ NHIỄU (NOISE FILTERING): Khi trích xuất đoạn văn nguyên văn, bạn PHẢI lọc bỏ hoàn toàn các nội dung nhiễu của trang web như: menu điều hướng, thanh bên, chân trang, quảng cáo, khảo sát, các nút bấm hoặc các dòng trạng thái.
 - GẮN CỜ DỮ LIỆU SỐ (hasNumericData): Gán 'hasNumericData' thành true nếu trong đoạn văn bản nguyên văn được chọn có chứa số liệu thống kê, doanh thu, tăng trưởng theo thời gian hoặc so sánh định lượng rõ ràng có thể trực quan hóa bằng biểu đồ. Ngược lại gán false.
 - Đề xuất 1-3 câu hỏi đào sâu "followUpQuestions" liên quan trực tiếp đến phân đoạn nội dung được trích xuất.
+- Tiêu đề (title) của mỗi phân đoạn phải do AI tự tạo ra một cách ngắn gọn, súc tích, dựa trên chính nội dung của phân đoạn đó để làm rõ chủ đề chi tiết được đề cập (Ví dụ: "Biến động cung cầu vàng SJC", "Thị trường kim cương nhân tạo 2025").
 
 Nội dung văn bản gốc cần phân tích:
 """
@@ -424,6 +425,8 @@ ${result.text}
       const extractionResults = await Promise.all(extractionPromises);
 
       // Distribute the extracted sections into our grouped map
+      const articleSections: AnalysisSection[] = [];
+
       for (const { result, extractedSections } of extractionResults) {
         const source: SourceData = {
           id: result.id,
@@ -434,13 +437,29 @@ ${result.text}
         };
 
         for (const sec of extractedSections) {
-          sectionsMap[sec.type].contents.push({
-            source,
-            title: sec.title,
-            content: sec.content,
-            chart: sec.chart,
-          });
-          sectionsMap[sec.type].followUpQuestions.push(...sec.followUpQuestions);
+          if (sec.type === 'article') {
+            articleSections.push({
+              type: 'article',
+              title: sec.title || 'Phân tích Chi tiết',
+              contents: [
+                {
+                  source,
+                  title: sec.title,
+                  content: sec.content,
+                  chart: sec.chart,
+                },
+              ],
+              followUpQuestions: sec.followUpQuestions.slice(0, 3),
+            });
+          } else {
+            sectionsMap[sec.type].contents.push({
+              source,
+              title: sec.title,
+              content: sec.content,
+              chart: sec.chart,
+            });
+            sectionsMap[sec.type].followUpQuestions.push(...sec.followUpQuestions);
+          }
         }
       }
 
@@ -449,32 +468,46 @@ ${result.text}
 
       // We define default titles for the types
       const defaultTitles: Record<'overview' | 'article' | 'critique' | 'conclusion', string> = {
-        overview: `Tổng quan về chủ đề: ${query}`,
+        overview: query,
         article: 'Phân tích Chi tiết',
         critique: 'Rủi ro và Những Điểm Cần Lưu Ý',
         conclusion: 'Kết luận & Khuyến nghị Hành động',
       };
 
-      const sectionTypes: Array<'overview' | 'article' | 'critique' | 'conclusion'> = [
-        'overview',
-        'article',
-        'critique',
-        'conclusion',
-      ];
+      // 1. Overview
+      const overviewData = sectionsMap['overview'];
+      if (overviewData.contents.length > 0) {
+        data.push({
+          type: 'overview',
+          title: defaultTitles['overview'],
+          contents: overviewData.contents,
+          followUpQuestions: Array.from(new Set(overviewData.followUpQuestions)).slice(0, 3),
+        });
+      }
 
-      for (const type of sectionTypes) {
-        const sectionData = sectionsMap[type];
-        if (sectionData.contents.length > 0) {
-          // Deduplicate follow-up questions
-          const uniqueQuestions = Array.from(new Set(sectionData.followUpQuestions)).slice(0, 3);
+      // 2. Article sections (N sections, NOT grouped)
+      data.push(...articleSections);
 
-          data.push({
-            type,
-            title: defaultTitles[type],
-            contents: sectionData.contents,
-            followUpQuestions: uniqueQuestions,
-          });
-        }
+      // 3. Critique
+      const critiqueData = sectionsMap['critique'];
+      if (critiqueData.contents.length > 0) {
+        data.push({
+          type: 'critique',
+          title: defaultTitles['critique'],
+          contents: critiqueData.contents,
+          followUpQuestions: Array.from(new Set(critiqueData.followUpQuestions)).slice(0, 3),
+        });
+      }
+
+      // 4. Conclusion
+      const conclusionData = sectionsMap['conclusion'];
+      if (conclusionData.contents.length > 0) {
+        data.push({
+          type: 'conclusion',
+          title: defaultTitles['conclusion'],
+          contents: conclusionData.contents,
+          followUpQuestions: Array.from(new Set(conclusionData.followUpQuestions)).slice(0, 3),
+        });
       }
 
       if (data.length === 0) {
@@ -513,7 +546,7 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
     data: [
       {
         type: 'overview',
-        title: `Tổng quan về chủ đề: ${query}`,
+        title: query,
         contents: [
           {
             source: {
@@ -534,7 +567,7 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
       },
       {
         type: 'article',
-        title: 'Phân tích Chi tiết',
+        title: 'Phân tích Chi tiết: Biểu đồ và Số liệu Tăng trưởng',
         contents: [
           {
             source: {
@@ -561,8 +594,8 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
         ],
       },
       {
-        type: 'critique',
-        title: 'Rủi ro và Những Điểm Cần Lưu Ý',
+        type: 'article',
+        title: 'Phân tích Chi tiết: Xu hướng Trải nghiệm Khách hàng',
         contents: [
           {
             source: {
@@ -572,8 +605,29 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
               author: results[2]?.author,
               favicon: resolveFavicon(results[2]?.url || 'https://example.com'),
             },
+            title: 'Khảo sát hành vi người tiêu dùng năm 2025',
+            content: `Phân tích sâu cho thấy người tiêu dùng ngày càng chú trọng tới tính minh bạch nguồn gốc và chất lượng dịch vụ chăm sóc hậu mãi đối với ${query}...`,
+          },
+        ],
+        followUpQuestions: [
+          'Người tiêu dùng ưu tiên yếu tố nào nhất?',
+          'Chỉ số hài lòng khách hàng thay đổi ra sao?',
+        ],
+      },
+      {
+        type: 'critique',
+        title: 'Rủi ro và Những Điểm Cần Lưu Ý',
+        contents: [
+          {
+            source: {
+              id: results[3]?.id || 'mock-id-3',
+              url: results[3]?.url || 'https://example.com/mock-article-3',
+              publishedDate: results[3]?.publishedDate,
+              author: results[3]?.author,
+              favicon: resolveFavicon(results[3]?.url || 'https://example.com'),
+            },
             title: `Đánh giá rủi ro pháp lý và cạnh tranh thị trường`,
-            content: results[2]?.text || `Các rủi ro và cảnh báo về thị trường ${query}.`,
+            content: results[3]?.text || `Các rủi ro và cảnh báo về thị trường ${query}.`,
           },
         ],
         followUpQuestions: [

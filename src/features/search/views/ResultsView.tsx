@@ -1248,7 +1248,7 @@ export function ResultsView() {
             variant="primary"
             type="submit"
             xstyle={styles.searchIconButton}
-            label={''}
+            label={'Tìm'}
           />
         </form>
       </header>
@@ -1322,7 +1322,7 @@ export function ResultsView() {
                               Cập nhật: {randomPastDate()} &bull; {section.contents.length} nguồn
                             </span>
                             <span {...stylex.props(styles.reliabilityBadge)}>
-                              <ShieldCheckIcon size={12} /> {randomReliability()}/5
+                              <ShieldCheckIcon size={12} /> Độ tin cậy {randomReliability()}/5
                             </span>
                           </div>
 
@@ -1648,7 +1648,7 @@ export function ResultsView() {
                         variant="primary"
                         type="submit"
                         xstyle={styles.searchIconButton}
-                        label={''}
+                        label={'Tìm'}
                       />
                     </form>
                   </div>

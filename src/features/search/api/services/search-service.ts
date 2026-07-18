@@ -137,9 +137,7 @@ Quy tắc phân loại:
    - Truy vấn quá ngắn, chỉ là danh từ chung chung, mơ hồ, không có ngữ cảnh rõ ràng.
    - Ví dụ: "vàng", "kim cương", "AI", "thời tiết".
    - Bạn cần trả về:
-     - options: 2 lựa chọn (chủ đề con cụ thể hơn) để gợi ý cho người dùng làm rõ ý muốn tìm kiếm của họ.
-       + Lựa chọn 1: Về chủ đề: [Tên chủ đề cụ thể và chi tiết liên quan đến từ khóa ban đầu]
-       + Lựa chọn 2: Về chủ đề: [Tên chủ đề cụ thể và chi tiết liên quan đến từ khóa ban đầu khác]
+     - options: 2 lựa chọn (chủ đề con cụ thể hơn) để gợi ý cho người dùng làm rõ ý muốn tìm kiếm của họ. Mỗi lựa chọn phải là một câu truy vấn tìm kiếm chi tiết, hoàn chỉnh và có ý nghĩa (Ví dụ: "Thị trường kim cương nhân tạo Việt Nam năm 2025", "Cách tự kiểm định kim cương thật giả"). TUYỆT ĐỐI KHÔNG chứa tiền tố "Về chủ đề:" hoặc "Chủ đề:".
 
 Trả về kết quả theo định dạng JSON.
 `;
@@ -218,7 +216,17 @@ Lưu ý quan trọng:
     });
 
     if (response.object.hasValidChart && response.object.chart) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[Search Service] Biểu đồ đã parse thành công cho đoạn văn: "${content.substring(0, 60)}...":`,
+        JSON.stringify(response.object.chart, null, 2),
+      );
       return response.object.chart;
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[Search Service] Không phát hiện biểu đồ hợp lệ cho đoạn văn: "${content.substring(0, 60)}..."`,
+      );
     }
   } catch (error) {
     console.error('[Search Service] Error generating chart for section:', error);
@@ -387,15 +395,8 @@ ${result.text}
           // For each extracted section, generate a chart if hasNumericData is true
           const sectionsWithCharts = await Promise.all(
             aiResponse.object.extractedSections.map(async (sec) => {
-              let chart: ChartData | undefined = undefined;
-              if (sec.hasNumericData) {
-                chart = await generateChartForSection(
-                  sec.content,
-                  clarifiedGoal,
-                  isAiConfigured,
-                  customOpenAI,
-                );
-              }
+              // Chart generation is temporarily disabled
+              const chart: ChartData | undefined = undefined;
               return {
                 source: {
                   id: result.id,
@@ -449,7 +450,7 @@ ${result.text}
       // We define default titles for the types
       const defaultTitles: Record<'overview' | 'article' | 'critique' | 'conclusion', string> = {
         overview: `Tổng quan về chủ đề: ${query}`,
-        article: 'Phân tích Chi tiết & Số liệu Tăng trưởng',
+        article: 'Phân tích Chi tiết',
         critique: 'Rủi ro và Những Điểm Cần Lưu Ý',
         conclusion: 'Kết luận & Khuyến nghị Hành động',
       };
@@ -533,7 +534,7 @@ function getMockAnalysis(query: string, results: SearchResultItem[]): { data: An
       },
       {
         type: 'article',
-        title: 'Phân tích Chi tiết & Số liệu Tăng trưởng',
+        title: 'Phân tích Chi tiết',
         contents: [
           {
             source: {

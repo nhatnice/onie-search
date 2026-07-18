@@ -848,6 +848,14 @@ const highlightPlugin = {
 // ---------------------------------------------------------
 // Component: Custom SVG Charts
 // ---------------------------------------------------------
+function cleanAndParseFloat(val: any): number {
+  if (typeof val === 'number') return val;
+  if (typeof val !== 'string') return 0;
+  const cleaned = val.replace(/[^\d.,-]/g, '').replace(/,/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
 function SearchChart({ chart }: { chart: ChartData }) {
   const { type, data } = chart;
   if (!data || data.length === 0) return null;
@@ -858,7 +866,9 @@ function SearchChart({ chart }: { chart: ChartData }) {
   let labelKey = '';
 
   for (const key of keys) {
-    if (typeof sample[key] === 'number') {
+    const val = sample[key];
+    const parsed = cleanAndParseFloat(val);
+    if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parsed) && parsed !== 0)) {
       valueKey = key;
     } else {
       labelKey = key;
@@ -868,7 +878,7 @@ function SearchChart({ chart }: { chart: ChartData }) {
   if (!valueKey) valueKey = keys[1] || keys[0];
   if (!labelKey) labelKey = keys[0];
 
-  const values = data.map((d) => Number(d[valueKey] || 0));
+  const values = data.map((d) => cleanAndParseFloat(d[valueKey]));
   const labels = data.map((d) => String(d[labelKey] || ''));
   const maxVal = Math.max(...values, 1);
   const minVal = Math.min(...values, 0);
@@ -1070,6 +1080,26 @@ function SearchChart({ chart }: { chart: ChartData }) {
       })}
     </svg>
   );
+}
+
+function getComposedQuery(originalQuery: string, newSelectionOrInput: string): string {
+  const orig = originalQuery.trim();
+  let next = newSelectionOrInput.trim();
+
+  // Strip prefix "Về chủ đề:" or similar if present
+  next = next.replace(/^(Về\s+)?chủ\s+đề:\s*/i, '');
+
+  if (!orig) return next;
+  if (!next) return orig;
+
+  if (next.toLowerCase().includes(orig.toLowerCase())) {
+    return next;
+  }
+  if (orig.toLowerCase().includes(next.toLowerCase())) {
+    return orig;
+  }
+
+  return `${orig} ${next}`;
 }
 
 // ---------------------------------------------------------
@@ -1347,21 +1377,25 @@ export function ResultsView() {
             </p>
 
             <div {...stylex.props(styles.clarityOptions)}>
-              {results.clarity.options?.map((option, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    void navigate({
-                      to: '/search',
-                      search: { q: option },
-                    });
-                  }}
-                  {...stylex.props(styles.clarityOptionButton)}
-                >
-                  {option}
-                </button>
-              ))}
+              {results.clarity.options?.map((option, idx) => {
+                const cleanedOption = option.replace(/^(Về\s+)?chủ\s+đề:\s*/i, '');
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      const composed = getComposedQuery(q || '', cleanedOption);
+                      void navigate({
+                        to: '/search',
+                        search: { q: composed },
+                      });
+                    }}
+                    {...stylex.props(styles.clarityOptionButton)}
+                  >
+                    {cleanedOption}
+                  </button>
+                );
+              })}
             </div>
 
             <div {...stylex.props(styles.clarityDivider)}>Hoặc nhập chủ đề khác</div>
@@ -1370,9 +1404,10 @@ export function ResultsView() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (customQuery.trim()) {
+                  const composed = getComposedQuery(q || '', customQuery);
                   void navigate({
                     to: '/search',
-                    search: { q: customQuery.trim() },
+                    search: { q: composed },
                   });
                 }
               }}

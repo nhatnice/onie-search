@@ -117,7 +117,15 @@ export function SearchView() {
       {...stylex.props(styles.page)}
     >
       <SearchContainer>
-        <div {...stylex.props(styles.logoSection)}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            marginBottom: '2.5rem',
+          }}
+          {...stylex.props(styles.logoSection)}
+        >
           <img
             src="/logo.png"
             alt="Portal Logo"
@@ -132,8 +140,26 @@ export function SearchView() {
           </span>
         </div>
 
-        <form onSubmit={handleSubmit} {...stylex.props(styles.searchForm)}>
-          <div {...stylex.props(styles.inputRow)}>
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1rem',
+          }}
+          {...stylex.props(styles.searchForm)}
+        >
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              gap: '0.75rem',
+              alignItems: 'center',
+            }}
+            {...stylex.props(styles.inputRow)}
+          >
             <div style={{ flex: 1 }}>
               <TextInput
                 label="Tìm kiếm"
@@ -149,9 +175,38 @@ export function SearchView() {
           </div>
         </form>
 
-        <div {...stylex.props(styles.quickSearchSection)}>
-          <span {...stylex.props(styles.quickSearchTitle)}>Tìm nhanh case demo</span>
-          <div {...stylex.props(styles.quickButtonsContainer)}>
+        <div
+          style={{
+            marginTop: '3rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1rem',
+            width: '100%',
+          }}
+          {...stylex.props(styles.quickSearchSection)}
+        >
+          <span
+            style={{
+              fontSize: '0.8125rem',
+              fontWeight: '500',
+              color: '#86868b',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+            {...stylex.props(styles.quickSearchTitle)}
+          >
+            Tìm nhanh case demo
+          </span>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: '0.625rem',
+            }}
+            {...stylex.props(styles.quickButtonsContainer)}
+          >
             <Button
               label="Case 1: Thị trường kim cương"
               variant="secondary"

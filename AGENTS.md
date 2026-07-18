@@ -14,6 +14,7 @@
 - [Auth patterns](.agents/auth.md) - Route guards (bảo vệ định tuyến), middleware, các tiện ích xác thực (auth utilities).
 - [TypeScript conventions](.agents/typescript.md) - Quy tắc ép kiểu (casting rules), ưu tiên tự động suy luận kiểu (type inference).
 - [Workflow](.agents/workflow.md) - Các lệnh trong quy trình làm việc (workflow commands), phương pháp xác thực (validation approach).
+- [UI Abstraction](.agents/ui-abstraction.md) - Hướng dẫn trừu tượng hóa UI để dễ dàng thay đổi thư viện UI trong tương lai, đảm bảo DRY.
 
 ## Cấu trúc file & module
 

@@ -75,6 +75,9 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  ssr: {
+    noExternal: ['@astryxdesign/theme-neutral', '@astryxdesign/core'],
+  },
   plugins: lazyPlugins(() => [
     tanstackStart(),
     nitro({
@@ -106,7 +109,7 @@ export default defineConfig({
     stylex.vite({
       dev: process.env.NODE_ENV === 'development',
       useCSSLayers: true,
-      runtimeInjection: false,
+      runtimeInjection: process.env.NODE_ENV === 'development',
     }),
     viteReact(),
   ]),

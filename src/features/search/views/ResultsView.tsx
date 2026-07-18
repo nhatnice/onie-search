@@ -1248,7 +1248,7 @@ export function ResultsView() {
             variant="primary"
             type="submit"
             xstyle={styles.searchIconButton}
-            label={''}
+            label={'Tìm'}
           />
         </form>
       </header>
@@ -1648,7 +1648,7 @@ export function ResultsView() {
                         variant="primary"
                         type="submit"
                         xstyle={styles.searchIconButton}
-                        label={''}
+                        label={'Tìm'}
                       />
                     </form>
                   </div>

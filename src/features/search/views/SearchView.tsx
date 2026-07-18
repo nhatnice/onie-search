@@ -138,7 +138,7 @@ export function SearchView() {
               type="submit"
               size="lg"
               xstyle={styles.searchIconButton}
-              label={''}
+              label={'Tìm'}
             />
           </div>
         </form>

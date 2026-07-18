@@ -13,7 +13,6 @@ import {
   ArrowRightIcon,
   CalendarIcon,
   ExternalLinkIcon,
-  Loader2Icon,
   SearchIcon,
   MessageCircleQuestionMarkIcon,
   ShieldCheckIcon,
@@ -435,7 +434,8 @@ const styles = stylex.create({
     animationDuration: '1s',
     animationIterationCount: 'infinite',
     animationTimingFunction: 'linear',
-    color: '#0066cc',
+    width: '48px',
+    height: '48px',
   },
   errorContainer: {
     padding: '2rem',
@@ -1257,7 +1257,7 @@ export function ResultsView() {
         {loading ? (
           <div {...stylex.props(styles.loadingContainer)}>
             <div {...stylex.props(styles.spinnerWrapper)}>
-              <Loader2Icon size={36} {...stylex.props(styles.spinner)} />
+              <img src="/logo.svg" alt="Đang tải..." {...stylex.props(styles.spinner)} />
               <div {...stylex.props(styles.spinnerText)}>Đang tìm kiếm...</div>
             </div>
             {[1, 2, 3].map((i) => (

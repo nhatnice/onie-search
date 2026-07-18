@@ -16,6 +16,7 @@ import {
   Loader2Icon,
   SearchIcon,
   MessageCircleQuestionMarkIcon,
+  ShieldCheckIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   UserIcon,
@@ -40,6 +41,23 @@ function resolveFavicon(url: string): string {
   } catch {
     return 'https://www.google.com/s2/favicons?domain=example.com&sz=64';
   }
+}
+
+// ---------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------
+function randomPastDate(): string {
+  const now = Date.now();
+  const offset = Math.floor(Math.random() * 365 * 24 * 60 * 60 * 1000);
+  return new Date(now - offset).toLocaleDateString('vi-VN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function randomReliability(): number {
+  return Math.floor(Math.random() * 2) + 4; // 4 or 5
 }
 
 // ---------------------------------------------------------
@@ -449,14 +467,6 @@ const styles = stylex.create({
     borderTopColor: '#e5e7eb',
     margin: '0.75rem 0',
   },
-  sourceToggleButtonGroup: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-    width: '100%',
-    maxWidth: '100%',
-    margin: '0.5rem 0',
-  },
   sourceToggleButton: {
     display: 'flex',
     alignItems: 'center',
@@ -491,6 +501,88 @@ const styles = stylex.create({
     objectFit: 'cover',
   },
 
+  sectionInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
+  },
+  sectionInfoText: {
+    fontSize: '0.8125rem',
+    color: '#86868b',
+  },
+  reliabilityBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.125rem 0.5rem',
+    borderRadius: '9999px',
+    backgroundColor: '#e8f5e9',
+    color: '#2e7d32',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+  },
+  sourceToggleGroupWrapper: {
+    position: 'relative',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    width: '100%',
+    maxWidth: '100%',
+    margin: '0.5rem 0',
+  },
+  sourceMoreButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.5rem 0.75rem',
+    borderRadius: '9999px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#d2d2d7',
+    backgroundColor: '#ffffff',
+    color: '#86868b',
+    fontSize: '0.8125rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    position: 'relative',
+  },
+  sourcePopover: {
+    display: 'none',
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: '0.25rem',
+    padding: '0.5rem',
+    backgroundColor: '#ffffff',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#e5e7eb',
+    borderRadius: '12px',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+    zIndex: 50,
+    minWidth: '200px',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  sourcePopoverButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.5rem 0.75rem',
+    borderRadius: '8px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#1d1d1f',
+    fontSize: '0.8125rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'left',
+    ':hover': {
+      backgroundColor: '#f5f5f7',
+    },
+  },
   followUpContainer: {
     display: 'flex',
     flexDirection: 'column',
@@ -498,12 +590,18 @@ const styles = stylex.create({
     marginTop: '0.75rem',
     paddingTop: '0.75rem',
   },
+  followUpList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
   followUpButton: {
     whiteSpace: 'normal',
     height: 'auto',
     minHeight: '32px',
-    textAlign: 'left',
+    justifyContent: 'flex-start',
     wordBreak: 'break-word',
+    width: '100%',
   },
   followUpTitle: {
     fontSize: '0.8125rem',
@@ -516,6 +614,10 @@ const styles = stylex.create({
   exploreButton: {
     justifyContent: 'flex-start',
     width: '100%',
+    whiteSpace: 'normal',
+    height: 'auto',
+    minHeight: '32px',
+    wordBreak: 'break-word',
   },
   clarityForm: {
     display: 'flex',
@@ -935,6 +1037,8 @@ export function ResultsView() {
     Record<string, { score: number; userVote: 'up' | 'down' | null }>
   >({});
 
+  const [sourceOrder, setSourceOrder] = useState<Record<string, number[]>>({});
+
   // Get vote state dynamically (stable hash score based on key for demo)
   const getVoteState = (key: string) => {
     if (!votes[key]) {
@@ -1045,6 +1149,12 @@ export function ResultsView() {
       ...prev,
       [sectionType]: index,
     }));
+    setSourceOrder((prev) => {
+      const order = prev[sectionType];
+      if (!order) return prev;
+      const filtered = order.filter((i) => i !== index);
+      return { ...prev, [sectionType]: [index, ...filtered] };
+    });
   };
 
   const handleOpenDrawer = (contentItem: SectionContentItem) => {
@@ -1207,38 +1317,118 @@ export function ResultsView() {
                         >
                           <h2 {...stylex.props(styles.sectionTitle)}>{section.title}</h2>
 
-                          {/* Toggle Button Group for Sources */}
-                          <div {...stylex.props(styles.sourceToggleButtonGroup)}>
-                            {section.contents.map((item, idx) => {
-                              const isActive = idx === activeIdx;
-                              const faviconUrl =
-                                item.source.favicon || resolveFavicon(item.source.url);
-                              return (
-                                <button
-                                  key={item.source.url + '-' + idx}
-                                  type="button"
-                                  onClick={() => handleTabChange(sectionKey, idx)}
-                                  {...stylex.props(
-                                    styles.sourceToggleButton,
-                                    isActive && styles.sourceToggleButtonActive,
-                                  )}
-                                >
-                                  <img
-                                    src={faviconUrl}
-                                    alt=""
-                                    {...stylex.props(styles.sourceToggleFavicon)}
-                                    onError={(e) => {
-                                      e.currentTarget.src =
-                                        'https://www.google.com/s2/favicons?domain=example.com&sz=64';
-                                    }}
-                                  />
-                                  <span>
-                                    {item.source.author || new URL(item.source.url).hostname}
-                                  </span>
-                                </button>
-                              );
-                            })}
+                          <div {...stylex.props(styles.sectionInfo)}>
+                            <span {...stylex.props(styles.sectionInfoText)}>
+                              Cập nhật: {randomPastDate()} &bull; {section.contents.length} nguồn
+                            </span>
+                            <span {...stylex.props(styles.reliabilityBadge)}>
+                              <ShieldCheckIcon size={12} /> {randomReliability()}/5
+                            </span>
                           </div>
+
+                          {/* Toggle Button Group for Sources */}
+                          {(() => {
+                            const order =
+                              sourceOrder[sectionKey] ?? section.contents.map((_, i) => i);
+                            const visible = order.slice(0, 3);
+                            const hidden = order.slice(3);
+                            return (
+                              <div {...stylex.props(styles.sourceToggleGroupWrapper)}>
+                                {visible.map((idx) => {
+                                  const item = section.contents[idx];
+                                  const isActive = idx === activeIdx;
+                                  const faviconUrl =
+                                    item.source.favicon || resolveFavicon(item.source.url);
+                                  return (
+                                    <button
+                                      key={item.source.url + '-' + idx}
+                                      type="button"
+                                      onClick={() => handleTabChange(sectionKey, idx)}
+                                      {...stylex.props(
+                                        styles.sourceToggleButton,
+                                        isActive && styles.sourceToggleButtonActive,
+                                      )}
+                                    >
+                                      <img
+                                        src={faviconUrl}
+                                        alt=""
+                                        {...stylex.props(styles.sourceToggleFavicon)}
+                                        onError={(e) => {
+                                          e.currentTarget.src =
+                                            'https://www.google.com/s2/favicons?domain=example.com&sz=64';
+                                        }}
+                                      />
+                                      <span>
+                                        {item.source.author || new URL(item.source.url).hostname}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                                {hidden.length > 0 && (
+                                  <div style={{ position: 'relative' }}>
+                                    <button
+                                      type="button"
+                                      {...stylex.props(styles.sourceMoreButton)}
+                                      onMouseEnter={(e) => {
+                                        const popover = e.currentTarget
+                                          .nextElementSibling as HTMLElement;
+                                        if (popover) popover.style.display = 'flex';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        const popover = e.currentTarget
+                                          .nextElementSibling as HTMLElement;
+                                        if (popover) popover.style.display = 'none';
+                                      }}
+                                    >
+                                      +{hidden.length}
+                                    </button>
+                                    <div
+                                      {...stylex.props(styles.sourcePopover)}
+                                      onMouseEnter={(e) => {
+                                        (e.currentTarget as HTMLElement).style.display = 'flex';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        (e.currentTarget as HTMLElement).style.display = 'none';
+                                      }}
+                                    >
+                                      {hidden.map((idx) => {
+                                        const item = section.contents[idx];
+                                        const faviconUrl =
+                                          item.source.favicon || resolveFavicon(item.source.url);
+                                        return (
+                                          <button
+                                            key={item.source.url + '-' + idx}
+                                            type="button"
+                                            onClick={() => handleTabChange(sectionKey, idx)}
+                                            {...stylex.props(styles.sourcePopoverButton)}
+                                          >
+                                            <img
+                                              src={faviconUrl}
+                                              alt=""
+                                              style={{
+                                                width: '16px',
+                                                height: '16px',
+                                                borderRadius: '50%',
+                                                objectFit: 'cover',
+                                              }}
+                                              onError={(e) => {
+                                                e.currentTarget.src =
+                                                  'https://www.google.com/s2/favicons?domain=example.com&sz=64';
+                                              }}
+                                            />
+                                            <span>
+                                              {item.source.author ||
+                                                new URL(item.source.url).hostname}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Active tab content panel */}
                           <div {...stylex.props(styles.activeTabPanel)}>
@@ -1325,7 +1515,7 @@ export function ResultsView() {
                             {section.followUpQuestions && section.followUpQuestions.length > 0 && (
                               <div {...stylex.props(styles.followUpContainer)}>
                                 <span {...stylex.props(styles.followUpTitle)}>Câu hỏi gợi ý</span>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div {...stylex.props(styles.followUpList)}>
                                   {section.followUpQuestions.map((question, qIdx) => (
                                     <Button
                                       key={qIdx}

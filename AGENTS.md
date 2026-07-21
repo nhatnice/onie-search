@@ -48,7 +48,7 @@ src/
 │       │   ├── functions.ts   # createServerFn wrappers (client-safe RPC bridge)
 │       │   ├── mutations.ts   # Mutations
 │       │   ├── queries.ts     # DB queries (pure — không side-effect, không emit event)
-│       │   ├── services/      # Application services — orchestrate queries + side-effects (Inngest emit, R2 upload, ...)
+│       │   ├── services/      # Application services — orchestrate queries + side-effects (BullMQ enqueue, R2 upload, ...)
 │       │   └── index.ts       # API barrel
 │       ├── components/    # UI components render-only (auth-layout)
 │       ├── schemas/       # zod schemas (client-safe)
@@ -76,6 +76,11 @@ src/
 │   ├── types.ts
 │   └── index.ts
 │
+├── browser/               # Browser infrastructure (top-level) — singleton Playwright via browserless CDP
+│   ├── client.ts          # getBrowser() singleton + withBrowserContext(fn) HOC
+│   ├── config.ts          # buildBrowserlessEndpoint() — browserless URL builder
+│   └── index.ts
+│
 ├── storage/               # Object Storage infrastructure (top-level) — R2 (S3-compatible)
 │   ├── adapter.ts         # ObjectStorage interface + UploadResult
 │   ├── r2.ts              # R2 adapter (@aws-sdk/client-s3)
@@ -83,15 +88,15 @@ src/
 │   ├── dedup.ts           # uploadWithDedup() — SHA-256 check, return existing path nếu trùng
 │   └── index.ts
 │
-├── inngest/               # Inngest event-driven infrastructure (top-level) — durable functions (queue, cron, retry, fan-out)
-│   ├── client.ts          # Inngest singleton + PortalEvents type
-│   ├── events.ts          # Event name constants + payload types
-│   ├── functions/         # inngest.createFunction handlers (page-crawl, feed-discovery-dispatcher, feed-discovery-worker, ...)
+├── redis/                 # BullMQ queue infrastructure (top-level) — durable jobs, retry, fan-out
+│   ├── client.ts          # ioredis singleton
+│   ├── queues.ts          # Queue declarations (page-crawl, feed-discovery-worker, cookie-refresh-worker)
+│   ├── workers.ts         # Worker processors (consume BullMQ jobs)
 │   └── index.ts
 │
 ├── runtime/               # Nitro runtime code (top-level) — server-side glue
-│   ├── tasks/             # Nitro tasks (manual: db:migrate, db:seed, ...)
-│   ├── routes/            # Nitro server routes (/api/inngest, ...)
+│   ├── tasks/             # Nitro tasks + cron (db:*, dispatch-feeds, dispatch-cookies)
+│   ├── plugins/           # Nitro plugins (bullmq.ts — start workers + setup event listeners)
 │   └── middleware/        # Server middleware (auth, rate limit, logging — tương lai)
 │
 ├── styles/                # Global CSS, theme tokens
@@ -103,12 +108,12 @@ src/
 
 Top-level chia 3 nhóm, **một chiều** từ dưới lên:
 
-| Lớp                | Thư mục                               | Vai trò                                                                | Phụ thuộc              |
-| ------------------ | ------------------------------------- | ---------------------------------------------------------------------- | ---------------------- |
-| **Infrastructure** | `db/`, `redis/`, `crawl/`, `runtime/` | Driver, client, server-side glue. Biết về protocol/service cụ thể.     | `lib/` (pure utils)    |
-| **Features**       | `features/*`                          | Business logic + data + UI. Orchestrate infrastructure.                | `lib/`, infrastructure |
-| **Routing**        | `routes/`                             | UI shell + route guards.                                               | `features/*`, `lib/`   |
-| **Utilities**      | `lib/`                                | Pure functions, helpers. Không side-effect, không biết infrastructure. | —                      |
+| Lớp                | Thư mục                                           | Vai trò                                                                | Phụ thuộc              |
+| ------------------ | ------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------- |
+| **Infrastructure** | `db/`, `redis/`, `crawl/`, `browser/`, `runtime/` | Driver, client, server-side glue. Biết về protocol/service cụ thể.     | `lib/` (pure utils)    |
+| **Features**       | `features/*`                                      | Business logic + data + UI. Orchestrate infrastructure.                | `lib/`, infrastructure |
+| **Routing**        | `routes/`                                         | UI shell + route guards.                                               | `features/*`, `lib/`   |
+| **Utilities**      | `lib/`                                            | Pure functions, helpers. Không side-effect, không biết infrastructure. | —                      |
 
 **Quy tắc vàng**: Infrastructure KHÔNG import features/routes. Features KHÔNG import routes. Lib KHÔNG import bất kỳ thứ gì ở trên.
 
@@ -116,16 +121,16 @@ Top-level chia 3 nhóm, **một chiều** từ dưới lên:
 
 Mỗi feature có 2 tầng trong `api/`:
 
-| Tầng         | Vai trò                                                                                                                                                                                 | Side-effect |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `queries.ts` | DB read/write (pure) — insert, update, select. Trả về data, không emit event, không gọi R2/Inngest.                                                                                     | KHÔNG       |
-| `services/`  | Orchestrate queries + side-effects (Inngest emit, R2 upload, multi-step workflows). Caller (worker, task, Inngest function) gọi service, không gọi query trực tiếp khi cần side-effect. | CÓ          |
+| Tầng         | Vai trò                                                                                                                                                                                   | Side-effect |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `queries.ts` | DB read/write (pure) — insert, update, select. Trả về data, không emit event, không gọi R2/BullMQ.                                                                                        | KHÔNG       |
+| `services/`  | Orchestrate queries + side-effects (BullMQ enqueue, R2 upload, multi-step workflows). Caller (worker, task, BullMQ processor) gọi service, không gọi query trực tiếp khi cần side-effect. | CÓ          |
 
 Quy tắc:
 
 - `queries.ts` nhận `db: DbOrTx` qua param (testable, transaction-composable).
-- Service nhận `db: DbOrTx` qua param, gọi queries, rồi emit event / upload R2 **sau khi DB commit**.
-- **Bên trong Inngest function** (có `step` param): emit event durable qua `step.sendEvent()` — Inngest checkpoint, retry-safe. Ngoài function (Nitro task, CLI script): `inngest.send()` fire-and-forget, có thể lost nếu crash.
+- Service nhận `db: DbOrTx` qua param, gọi queries, rồi enqueue job / upload R2 **sau khi DB commit**.
+- **Bên trong BullMQ worker processor** (có `Job` param): không gọi `Job.add`/`Queue.add` lồng trong processor. Worker chỉ chạy side-effect (refresh, upload, emit domain event qua `eventEmitter`); event listener ở `src/events/listeners.ts` mới enqueue job tiếp theo. Tách rạch ròi: processor = thực thi, listener = enqueue.
 - Cross-feature: feature A cần ghi vào table của feature B → gọi **service** của B (qua `api/services/`), KHÔNG import `queries/` hay `schema.ts` của B trực tiếp. VD: `pages` cần insert feeds → gọi `insertFeedLinks` từ `feed-sources/api/services/feed-service`. `feed-sources` cần insert pages → gọi `seedPages` từ `pages/api/services/page-service`, KHÔNG gọi `insertSeedPages` từ `pages/api/queries`. **Service = public API của feature, queries = internal.**
 
 ### Object Storage
@@ -135,26 +140,37 @@ Quy tắc:
 - **Lưu relative-path trong DB** (`page_contents.blob_path` — vd `pages/<id>/page/text.html`), **build full URL runtime** qua `R2_PUBLIC_URL` env. Không lưu full URL (env-agnostic, dễ migrate bucket/domain).
 - Env: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
 
-### Inngest
+### BullMQ (queue + retry + fan-out)
 
-- `src/inngest/` — event-driven infra. `Inngest` client + step functions.
-- Serve endpoint: `src/routes/api/inngest.ts` — Nitro route mount tại `/api/inngest` qua `inngest/nitro` adapter.
-- Local dev: `pnpm inngest:dev` chạy Inngest dev server trỏ về `http://localhost:3000/api/inngest`.
-- Inngest tự lưu event log — KHÔNG cần table events riêng.
-- **Parallel steps pattern** (`Promise.all` + `step.run`): mỗi branch của `Promise.all` PHẢI là 1 `step.run` call — KHÔNG trộn `step.run` với plain async function. Mixing trigger `NESTING_STEPS` warning (và ESLint rule `@inngest/no-nested-steps` sẽ flag). Bug thực tế ở `feed-service.ts:persistFeedDiscovery`: `Promise.all([discoverAndEmitPages(step), insertFeedLinks(plain)])` → warning. Fix: `Promise.all([step.run('a', ...), step.run('b', ...)])` + `step.sendEvent` chạy _sau_ Promise.all (sequential, vì sendEvent cần kết quả các step trước). Source: Inngest docs `step-parallelism` + `@inngest/no-nested-steps` rule.
-- **Nested step pitfall**: KHÔNG được gọi `step.*` bên trong callback của `step.run(...)` (kể cả qua wrapper function trung gian). Nếu cần sequence các step, extract thành separate function rồi gọi ngoài `step.run`.
-- **Step output size limit (4 MiB) + checkpointing (10s maxRuntime default)**: `step.run(name, fn)` checkpoint `fn`'s return value. Inngest cap 4MiB per step (`inngest.com/docs/usage-limits`). Bài học từ `feed-discovery.ts` worker — đã thử 3 cách đều fail, fix cuối cùng mới đúng:
-  1. ❌ `step.run('fetch-and-extract', () => fetchAndExtract(url))` — step output = 50k URLs (~10MB) → `async checkpoint rejected: step output too large` → Inngest reject checkpoint → function fail sau 3 retries → feed stuck `scanning` vĩnh viễn.
-  2. ❌ `fetchAndExtract` plain async (không step.run) — plain async chạy giữa các step boundary → checkpointing engine `DefaultMaxRuntime.serve = 1e4` (10s) fire → engine cố checkpoint nhưng không có step đang chạy → response treo → "Your server reset the connection" (Inngest docs: "Non-deterministic logic must be placed within a `step.run()` call").
-  3. ✅ **Gộp fetch + extract + insert + emit + mark-scanned vào 1 `step.run` duy nhất** — 50k URLs nằm trong step memory (không cross boundary → không bị 4MiB), step output chỉ return `{pagesAdded, feedsAdded}` (~50 bytes), `inngest.send()` (raw client, không phải step tool → không vi phạm nested-step). Nếu step > 10s maxRuntime → engine interrupt + retry → re-fetch (idempotent) + re-insert (onConflictDoNothing).
-- **Fan-out events (5000/call cap)**: `inngest.send()` / `step.sendEvent()` max 5000 events/call. Sitemap 50k URLs → batch 10 lần (5000/lần). Batched tại function top-level (không trong step) để tránh nested step + 1000 steps/function limit.
+- `src/redis/` — durable jobs. `Queue` (enqueue producers) + `Worker` (consumers). Connection: `ioredis` singleton.
+- **Trigger** — cron chạy qua **Nitro `scheduledTasks`** (xem [Nitro Integration](#nitro-integration-viteconfigts)). KHÔNG dùng BullMQ repeatable job `repeat: { pattern: '...' }` nữa.
+- **Pattern: Nitro task (trigger) → BullMQ worker (execution)**:
+  - Nitro task `dispatch-feeds` (mỗi 5 phút) → query due feeds → emit `FEED_DISCOVERY_REQUESTED` event → listener `listeners.ts` enqueue `feed-discovery-worker` job.
+  - Nitro task `dispatch-cookies` (mỗi giờ) → query due cookies (join accounts) → `addBulk` trực tiếp `cookie-refresh-worker` job (bypass event).
+- **Idempotency** — `jobId = entityId` (vd `feedId`, `cookieId`) → BullMQ dedupe, retry-safe. Nếu cron pick lại row đang xử lý, jobId conflict → skip.
+- **Queue pattern chuẩn** (xem `feed-discovery-worker` + `cookie-refresh-worker`):
+  ```
+  Nitro scheduledTasks ──► Nitro task (dispatch-feeds/cookies)
+                              │ query + (emit event | addBulk)
+                              ▼
+                          eventEmitter (optional) ──► listener ──► worker queue ──► worker processor
+                                                                                       │ call service
+                                                                                       ▼
+                                                                          features/*/api/services/*
+  ```
+- **Khi nào dùng gì**:
+  - Idempotent job + retry-on-fail + cron → Nitro scheduledTasks (trigger) + BullMQ worker (exec).
+  - HTTP trigger / on-demand từ UI / server function → enqueue trực tiếp qua `Queue.add()` (không qua cron).
+  - One-shot CLI / migration / seed → Nitro task (manual trigger) hoặc `scripts/*.ts`, KHÔNG qua BullMQ.
 
-- **Business logic thuộc service, KHÔNG thuộc Inngest function file.** Inngest function file (`src/inngest/functions/*.ts`) chỉ orchestrate step boundaries + retry logic. Business logic (fetch, extract, queries, event emit) phải nằm trong `features/*/api/` (queries + services). Bài học từ bug `feed-discovery.ts`:
-  - **Anti-pattern đã thử**: gom logic vào Inngest function: `step.run('fetch-and-extract', () => fetchAndExtract(url))` → step output = 50k URLs → vượt 4MiB → checkpoint rejected. Hoặc plain async giữa các step → checkpointing engine không checkpoint được → connection reset.
-  - **Anti-pattern khác**: `persistFeedDiscovery` ban đầu là service nhưng lại nhận `step` param và gọi `step.run` bên trong → coupling Inngest + service + nested step vi phạm.
-  - **Pattern đúng**: Service (`features/feed-sources/api/services/feed-service.ts:persistFeedDiscovery`) là **plain async** — gọi queries trực tiếp, emit event qua `inngest.send()` (raw client, không phải step tool). Inngest function file chỉ wrap toàn bộ logic trong 1 `step.run` duy nhất (tạo 1 step boundary duy nhất cho cả fetch+extract+insert+emit+mark-scanned) → 50k URLs nằm trong step memory (không cross boundary) → step output chỉ là count (50 bytes, dưới 4MiB) → checkpoint OK, retry idempotent (`onConflictDoNothing`).
-  - **Rule**: non-deterministic code (HTTP fetch, DB write) PHẢI nằm trong service layer, KHÔNG inline trong `inngest/functions/*.ts`. Inngest function chỉ wrap service call trong `step.run`. Service nhận `db` qua param, KHÔNG nhận `step` — service "thuần" (pure business logic) có thể test/unit mà không cần Inngest context.
-  - **Source**: Inngest docs `how-functions-are-executed` — "Non-deterministic logic, such as database or API calls, must be placed within a `step.run()` call" + `step.run` ở function layer (không phải service layer) + service layer plain async để tránh nested `step.*`.
+### Schema
+
+Mỗi feature tự trị schema trong `src/features/<feature>/api/schema.ts`, dùng `pgSchema('<name>').table()` riêng. Re-export qua `src/db/schema.ts`. Migration chỉ chứa table/enum/constraint của schema đó (schema qualifier `"<name>".`).
+
+**Hiện tại:**
+
+- `crawler` — pages, page_metadata, page_contents, page_links, feeds (`src/db/crawler-schema.ts`).
+- `social` — platforms, accounts, cookies (FB/IG/TikTok) (`src/db/social-schema.ts`). `accounts` PK `id` (UUID), unique `(platform_user_id, platform_id)`; `cookies` FK `account_id → accounts.id` (single-column, không có platform column — lấy qua account join). Mở rộng thêm khi có mảng social mới (posts, profiles, comments, ...).
 
 ### DB / Drizzle
 
@@ -219,6 +235,24 @@ export function findFeedExtractor(ct: string): FeedExtractor {
 **Dùng khi:** Factory pattern với selection dựa trên predicate (content-type, file extension, format...), ≤ 5 strategies. **KHÔNG dùng khi:** 1-2 strategy (if/else trực tiếp đơn giản hơn — YAGNI), selection cần context phức tạp (không chỉ 1 predicate), strategy có side-effect/order-dependent phức tạp (tường minh dễ debug hơn).
 
 **Case thực tế:** `src/crawl/extractors/factory.ts` — 5 extractors (sitemap, html, rss, atom, json-feed) route theo content-type, 2 factory functions (page + feed). `findFeedExtractor` còn sniff root element (`<rss>` / `<feed>` / `<urlset>` / `<sitemapindex>`) khi content-type generic — vì nhiều server serve RSS/Atom với `application/xml` thay vì `+rss`/`+atom`. Fallback `noopFeedExtractor` (null object pattern) cho content không match gì (HTML 404 page, binary) — tránh throw.
+
+**Variant: exact-key Map registry** — khi selection dựa trên exact match theo key (không phải predicate), dùng `Map<Key, Strategy>` thay vì array + `find(matches)`. Lookup O(1), không cần `matches()` method, khai báo tập trung 1 dòng.
+
+```ts
+// ✅ DRY — exact platform → adapter, thêm platform = push 1 dòng vào array
+const adapters: readonly CookieRefreshAdapter[] = [
+  facebookAdapter,
+  instagramAdapter,
+  tiktokAdapter,
+];
+const registry = new Map<SocialPlatform, CookieRefreshAdapter>(
+  adapters.map((a) => [a.platform, a]),
+);
+```
+
+**Khi nào dùng:** factory có key rõ ràng (platform, type, locale, ...), không cần sniff/precondition. **KHÔNG dùng:** khi cần fallback chain (no-op, default) — Map.get trả undefined cần caller handle, array find + `??` fallback gọn hơn.
+
+**Case thực tế:** `src/features/social/api/adapters/registry.ts` — `findCookieRefreshAdapter(platform)` exact match theo `SocialPlatform` enum.
 
 #### Extract step functions — khi 1 hàm gộp nhiều trách nhiệm (SRP violation)
 
@@ -349,11 +383,11 @@ src/crawl/policies/noindex.ts   # ✅ crawl policy, infrastructure layer
 > - 1 dòng `CREATE SCHEMA IF NOT EXISTS "crawler";` trong file SQL migration
 > - Move `drizzle-kit` từ `devDependencies` → `dependencies` để có trong production container
 >
-> **Bài học (Inngest adapter):** Inngest 4.12.1 nitro adapter fail với h3 v2. Em viết custom adapter ~40 dòng thay vì check `pnpm overrides` hoặc downgrade Nitro. Custom adapter = maintenance debt, type safety yếu, dễ break khi upgrade.
+> **Bài học (Inngest adapter):** Inngest 4.12.1 nitro adapter fail với h3 v2. Em viết custom adapter ~40 dòng thay vì check `pnpm overrides` hoặc downgrade Nitro. Custom adapter = maintenance debt, type safety yếu, dễ break khi upgrade. → Bài học chính là custom adapter cho queue framework là **anti-pattern**: codebase chuyển sang BullMQ + `eventemitter2` thuần (không cần Inngest serve endpoint, không cần nitro adapter).
 
 **Trước khi setup/config/thêm feature cho bất kỳ framework/library nào, PHẢI đọc docs chính thức trước.**
 
-1. **Đọc docs chính thức** — TanStack Start, Nitro, Drizzle, Inngest, Vite+. Không dựa vào memory. Không copy-paste config cũ.
+1. **Đọc docs chính thức** — TanStack Start, Nitro, Drizzle, BullMQ, Vite+. Không dựa vào memory. Không copy-paste config cũ.
 2. **Kiểm tra version hiện tại** — docs có thể khác giữa versions. Dùng Context7 MCP để fetch docs mới nhất.
 3. **Understand config structure** — biết cái gì là plugin vs top-level option, thứ tự plugin matters không.
 4. **KHÔNG dùng `@ts-expect-error`** để che giấu lỗi type — nếu cần, nghĩa là config sai hoặc thiếu type definitions.
@@ -362,7 +396,7 @@ src/crawl/policies/noindex.ts   # ✅ crawl policy, infrastructure layer
 
 ### Stack incompatibility → escalation ladder (KHÔNG skip)
 
-Khi framework A's adapter không tương thích với framework B version X (vd: Inngest `nitro` adapter vs Nitro 3 + h3 v2), **KHÔNG** viết custom adapter/workaround trước. Đi theo trình tự:
+Khi framework A's adapter không tương thích với framework B version X (vd: Inngest `nitro` adapter vs Nitro 3 + h3 v2 — đã switch sang BullMQ để né hoàn toàn), **KHÔNG** viết custom adapter/workaround trước. Đi theo trình tự:
 
 1. **Check version mới hơn** — `pnpm info <pkg> versions` (stable + beta + canary). Latest có thể đã fix.
 2. **Check GitHub issues/PRs** — maintainer/committer đã confirm fix chưa, có PR pending release, có workaround community chưa.
@@ -422,7 +456,7 @@ Quy tắc:
   ```
 
 - **KHÔNG** dùng `@ts-expect-error` cho `nitro` property — nếu cần, nghĩa là config sai.
-- **Cron/scheduled tasks** dùng Inngest `triggers: [{ cron: '...' }]` trong function definition (xem `feed-discovery.ts`). KHÔNG dùng `scheduledTasks` (chỉ chạy trong `nitro dev` standalone, không chạy trong Vite+ dev).
+- **Cron/scheduled tasks** dùng Nitro `scheduledTasks` config (map cron expression → task name) trong `vite.config.ts`. Tasks chạy qua Nitro scheduler (croner engine ở dev/node_server preset). Pattern xem [BullMQ](#bullmq-queue--retry--fan-out).
 
 ### Chạy Tasks (CLI vs HTTP)
 
@@ -453,7 +487,7 @@ Có 2 cách chạy tasks:
    - Tasks phải được register trong `nitro({ tasks: {...} })`.
    - Phù hợp: webhook từ external service.
 
-Scheduled tasks (cron) dùng Inngest `triggers: [{ cron: '...' }]` trong function definition — Inngest chạy qua platform, không phụ thuộc Nitro dev server.
+Scheduled tasks (cron) dùng Nitro `scheduledTasks` config (map cron expression → task name) trong `vite.config.ts` — chạy qua Nitro scheduler, tự trigger Nitro task (vd `dispatch-feeds`, `dispatch-cookies`).
 
 ### Schema & Migration Workflow
 

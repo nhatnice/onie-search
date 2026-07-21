@@ -20,9 +20,17 @@ import {
 } from '@/features/pages/api/services/page-service';
 import { getCookieById } from '@/features/social/api/queries';
 import { refreshCookie } from '@/features/social/api/services/cookie-service';
+import {
+  buildPostReactJobs,
+  crawlPostReacts,
+  failJob,
+  finishJob,
+  loadJobContext,
+} from '@/features/social/api/services/post-react-service';
 import { canonicalizeUrl } from '@/lib/url';
 
 import { createRedisClient } from './client';
+import { postReactCrawlQueue } from './queues';
 
 const BATCH_SIZE = 100;
 
@@ -119,6 +127,45 @@ async function cookieRefreshWorkerProcessor(
   return result;
 }
 
+// 4. post-react-crawl processor (platform-agnostic — delegates to adapter via registry)
+interface PostReactCrawlJobData {
+  jobId: string;
+  postId: string;
+  postUrl: string;
+  platformId: string;
+  cookieId: string;
+}
+
+async function postReactCrawlProcessor(job: Job<PostReactCrawlJobData>): Promise<unknown> {
+  const { jobId, postId, postUrl, platformId, cookieId } = job.data;
+  const started = Date.now();
+  try {
+    const context = await loadJobContext(db, jobId);
+    const startCursor = context?.startCursor ?? null;
+    const result = await crawlPostReacts(db, {
+      jobId,
+      postId,
+      postUrl,
+      platformId,
+      cookieId,
+      startCursor,
+    });
+    await finishJob(db, jobId, result);
+    const ms = Date.now() - started;
+    console.warn(
+      `[post-react] done ${ms}ms postId=${postId} reactors=+${result.reactors} platform=${platformId}`,
+    );
+    return result;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (job.attemptsMade + 1 >= (job.opts.attempts || 1)) {
+      await failJob(db, jobId, msg).catch(() => undefined);
+    }
+    console.error(`[post-react] fail postId=${postId} jobId=${jobId}`, err);
+    throw err;
+  }
+}
+
 // Exported for Nitro task `dispatch-feeds` to emit events
 export async function dispatchFeeds(): Promise<unknown> {
   const due = await getFeedsToScan(db, BATCH_SIZE);
@@ -136,6 +183,37 @@ export async function dispatchFeeds(): Promise<unknown> {
   return { result: `Dispatched ${due.length} feeds` };
 }
 
+// Exported for Nitro task `dispatch-post-reacts` to enqueue jobs
+export async function dispatchPostReactCrawl(): Promise<unknown> {
+  const jobs = await buildPostReactJobs(db, BATCH_SIZE);
+  if (jobs.length === 0) {
+    return { result: 'No posts due' };
+  }
+  const bullJobs = jobs.map((j) => ({
+    name: 'post-react-crawl',
+    data: {
+      jobId: j.jobId,
+      postId: j.postId,
+      postUrl: j.postUrl,
+      platformId: j.platformId,
+      cookieId: j.cookieId,
+    },
+    opts: {
+      attempts: 3,
+      backoff: { type: 'exponential' as const, delay: 60_000 },
+      removeOnComplete: true,
+      removeOnFail: true,
+    },
+  }));
+  try {
+    await postReactCrawlQueue.addBulk(bullJobs);
+  } catch (err) {
+    console.error('[post-react] Failed to enqueue jobs', err);
+  }
+  console.warn(`[post-react] dispatched ${jobs.length} posts`);
+  return { result: `Dispatched ${jobs.length} posts` };
+}
+
 export { BATCH_SIZE };
 
 import type Redis from 'ioredis';
@@ -143,15 +221,19 @@ import type Redis from 'ioredis';
 let pageCrawlWorker: Worker | undefined;
 let feedDiscoveryWorker: Worker | undefined;
 let cookieRefreshWorker: Worker | undefined;
+let postReactCrawlWorker: Worker | undefined;
 
 let pageCrawlConn: Redis | undefined;
 let feedDiscoveryConn: Redis | undefined;
 let cookieRefreshConn: Redis | undefined;
+let postReactCrawlConn: Redis | undefined;
 
 export function startWorkers(): void {
-  const pageCrawlConcurrency = Number(process.env.PAGE_CRAWL_CONCURRENCY) || 50;
-  const workerConcurrency = Number(process.env.FEED_DISCOVERY_WORKER_CONCURRENCY) || 4;
-  const cookieRefreshWorkerConcurrency = Number(process.env.COOKIE_REFRESH_WORKER_CONCURRENCY) || 4;
+  const pageCrawlConcurrency = Number(process.env['PAGE_CRAWL_CONCURRENCY']) || 50;
+  const workerConcurrency = Number(process.env['FEED_DISCOVERY_WORKER_CONCURRENCY']) || 4;
+  const cookieRefreshWorkerConcurrency =
+    Number(process.env['COOKIE_REFRESH_WORKER_CONCURRENCY']) || 4;
+  const postReactCrawlConcurrency = Number(process.env['POST_REACT_CRAWL_CONCURRENCY']) || 1;
 
   pageCrawlConn = createRedisClient();
   pageCrawlWorker = new Worker('page-crawl', pageCrawlProcessor, {
@@ -171,6 +253,12 @@ export function startWorkers(): void {
     concurrency: cookieRefreshWorkerConcurrency,
   });
 
+  postReactCrawlConn = createRedisClient();
+  postReactCrawlWorker = new Worker('post-react-crawl', postReactCrawlProcessor, {
+    connection: postReactCrawlConn as unknown as ConnectionOptions,
+    concurrency: postReactCrawlConcurrency,
+  });
+
   console.warn('[BullMQ] Workers started successfully');
 }
 
@@ -186,6 +274,9 @@ export async function stopWorkers(): Promise<void> {
   if (cookieRefreshWorker) {
     promises.push(cookieRefreshWorker.close());
   }
+  if (postReactCrawlWorker) {
+    promises.push(postReactCrawlWorker.close());
+  }
   await Promise.all(promises);
 
   if (pageCrawlConn) {
@@ -196,6 +287,9 @@ export async function stopWorkers(): Promise<void> {
   }
   if (cookieRefreshConn) {
     await cookieRefreshConn.quit();
+  }
+  if (postReactCrawlConn) {
+    await postReactCrawlConn.quit();
   }
 
   console.warn('[BullMQ] Workers stopped');

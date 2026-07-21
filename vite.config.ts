@@ -112,10 +112,14 @@ export default defineConfig({
           handler: resolve(rootDir, 'src/runtime/tasks/dispatch-cookies.ts'),
           description: 'Query due cookies and enqueue cookie-refresh-worker jobs',
         },
+        'dispatch-post-reacts': {
+          handler: resolve(rootDir, 'src/runtime/tasks/dispatch-post-reacts.ts'),
+          description: 'Query posts without crawl job and enqueue post-react-crawl jobs',
+        },
       },
       scheduledTasks: {
         '*/5 * * * *': 'dispatch-feeds',
-        '0 * * * *': 'dispatch-cookies',
+        '0 * * * *': ['dispatch-cookies', 'dispatch-post-reacts'],
       },
     }),
     stylex.vite({

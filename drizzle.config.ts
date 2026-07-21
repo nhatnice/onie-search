@@ -5,5 +5,5 @@ export default {
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: { url: process.env.DATABASE_URL! },
-  schemaFilter: ['public', 'crawler'],
+  schemaFilter: ['public', 'crawler', 'social'],
 } satisfies Config;

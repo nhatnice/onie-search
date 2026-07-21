@@ -1,8 +1,8 @@
 export { createRedisClient } from './client';
 export {
-  pageCrawlQueue,
-  feedDiscoveryWorkerQueue,
-  feedDiscoveryDispatcherQueue,
   closeQueues,
+  cookieRefreshWorkerQueue,
+  feedDiscoveryWorkerQueue,
+  pageCrawlQueue,
 } from './queues';
-export { startWorkers, setupRepeatableJobs, stopWorkers } from './workers';
+export { dispatchFeeds, startWorkers, stopWorkers } from './workers';

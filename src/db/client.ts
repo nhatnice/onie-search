@@ -8,7 +8,7 @@ import * as schema from './schema';
 const pool = new Pool({
   connectionString: env.databaseUrl,
   max: 10,
-  options: '-c search_path=crawler,public',
+  options: '-c search_path=crawler,social,public',
 });
 
 export const db = drizzle(pool, { schema });

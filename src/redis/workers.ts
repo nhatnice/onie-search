@@ -18,10 +18,13 @@ import {
   markPageFailed,
   type PageCrawlInput,
 } from '@/features/pages/api/services/page-service';
+import { getCookieById } from '@/features/social/api/queries';
+import { refreshCookie } from '@/features/social/api/services/cookie-service';
 import { canonicalizeUrl } from '@/lib/url';
 
 import { createRedisClient } from './client';
-import { feedDiscoveryDispatcherQueue } from './queues';
+
+const BATCH_SIZE = 100;
 
 let fetcherInstance: CrawlerAdapter | undefined;
 
@@ -93,14 +96,35 @@ async function feedDiscoveryWorkerProcessor(
   }
 }
 
-// 3. feed-discovery-dispatcher processor
-const BATCH_SIZE = 100;
-async function feedDiscoveryDispatcherProcessor(): Promise<unknown> {
+// 3. cookie-refresh-worker processor
+async function cookieRefreshWorkerProcessor(
+  job: Job<{ cookieId: string; accountId: string; platformId: string }>,
+): Promise<unknown> {
+  const { cookieId, platformId } = job.data;
+  const started = Date.now();
+  const cookie = await getCookieById(db, cookieId);
+  if (!cookie) {
+    console.warn(`[cookie-refresh] skip cookieId=${cookieId} (not found)`);
+    return { result: 'Cookie not found' };
+  }
+  if (cookie.status === 'dead') {
+    console.warn(`[cookie-refresh] skip cookieId=${cookieId} (dead)`);
+    return { result: 'Cookie dead' };
+  }
+  const result = await refreshCookie(db, cookie, platformId);
+  const ms = Date.now() - started;
+  console.warn(
+    `[cookie-refresh] ${result.status} ${ms}ms cookieId=${cookieId} platform=${platformId}`,
+  );
+  return result;
+}
+
+// Exported for Nitro task `dispatch-feeds` to emit events
+export async function dispatchFeeds(): Promise<unknown> {
   const due = await getFeedsToScan(db, BATCH_SIZE);
   if (due.length === 0) {
     return { result: 'No feeds due' };
   }
-
   for (const f of due) {
     eventEmitter.emit(FEED_DISCOVERY_REQUESTED, {
       feedId: f.id,
@@ -112,19 +136,22 @@ async function feedDiscoveryDispatcherProcessor(): Promise<unknown> {
   return { result: `Dispatched ${due.length} feeds` };
 }
 
+export { BATCH_SIZE };
+
 import type Redis from 'ioredis';
 
 let pageCrawlWorker: Worker | undefined;
 let feedDiscoveryWorker: Worker | undefined;
-let feedDiscoveryDispatcherWorker: Worker | undefined;
+let cookieRefreshWorker: Worker | undefined;
 
 let pageCrawlConn: Redis | undefined;
 let feedDiscoveryConn: Redis | undefined;
-let feedDiscoveryDispatcherConn: Redis | undefined;
+let cookieRefreshConn: Redis | undefined;
 
 export function startWorkers(): void {
   const pageCrawlConcurrency = Number(process.env.PAGE_CRAWL_CONCURRENCY) || 50;
   const workerConcurrency = Number(process.env.FEED_DISCOVERY_WORKER_CONCURRENCY) || 4;
+  const cookieRefreshWorkerConcurrency = Number(process.env.COOKIE_REFRESH_WORKER_CONCURRENCY) || 4;
 
   pageCrawlConn = createRedisClient();
   pageCrawlWorker = new Worker('page-crawl', pageCrawlProcessor, {
@@ -138,34 +165,13 @@ export function startWorkers(): void {
     concurrency: workerConcurrency,
   });
 
-  feedDiscoveryDispatcherConn = createRedisClient();
-  feedDiscoveryDispatcherWorker = new Worker(
-    'feed-discovery-dispatcher',
-    feedDiscoveryDispatcherProcessor,
-    {
-      connection: feedDiscoveryDispatcherConn as unknown as ConnectionOptions,
-      concurrency: 1,
-    },
-  );
+  cookieRefreshConn = createRedisClient();
+  cookieRefreshWorker = new Worker('cookie-refresh-worker', cookieRefreshWorkerProcessor, {
+    connection: cookieRefreshConn as unknown as ConnectionOptions,
+    concurrency: cookieRefreshWorkerConcurrency,
+  });
 
   console.warn('[BullMQ] Workers started successfully');
-}
-
-export async function setupRepeatableJobs(): Promise<void> {
-  // Add repeatable job for feed discovery dispatcher
-  await feedDiscoveryDispatcherQueue.add(
-    'dispatch-feeds',
-    {},
-    {
-      repeat: {
-        pattern: '*/5 * * * *',
-      },
-      jobId: 'feed-discovery-dispatcher-repeat',
-      removeOnComplete: true,
-      removeOnFail: true,
-    },
-  );
-  console.warn('[BullMQ] Scheduled repeatable feed discovery dispatcher');
 }
 
 export async function stopWorkers(): Promise<void> {
@@ -177,20 +183,19 @@ export async function stopWorkers(): Promise<void> {
   if (feedDiscoveryWorker) {
     promises.push(feedDiscoveryWorker.close());
   }
-  if (feedDiscoveryDispatcherWorker) {
-    promises.push(feedDiscoveryDispatcherWorker.close());
+  if (cookieRefreshWorker) {
+    promises.push(cookieRefreshWorker.close());
   }
   await Promise.all(promises);
 
-  // Gracefully quit connection clients
   if (pageCrawlConn) {
     await pageCrawlConn.quit();
   }
   if (feedDiscoveryConn) {
     await feedDiscoveryConn.quit();
   }
-  if (feedDiscoveryDispatcherConn) {
-    await feedDiscoveryDispatcherConn.quit();
+  if (cookieRefreshConn) {
+    await cookieRefreshConn.quit();
   }
 
   console.warn('[BullMQ] Workers stopped');

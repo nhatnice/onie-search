@@ -104,6 +104,18 @@ export default defineConfig({
           handler: resolve(rootDir, 'src/runtime/tasks/db-seed.ts'),
           description: 'Insert seed URLs from SEED_URLS env var (comma-separated) into pages table',
         },
+        'dispatch-feeds': {
+          handler: resolve(rootDir, 'src/runtime/tasks/dispatch-feeds.ts'),
+          description: 'Query due feeds and enqueue feed-discovery-worker jobs',
+        },
+        'dispatch-cookies': {
+          handler: resolve(rootDir, 'src/runtime/tasks/dispatch-cookies.ts'),
+          description: 'Query due cookies and enqueue cookie-refresh-worker jobs',
+        },
+      },
+      scheduledTasks: {
+        '*/5 * * * *': 'dispatch-feeds',
+        '0 * * * *': 'dispatch-cookies',
       },
     }),
     stylex.vite({

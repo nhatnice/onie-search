@@ -13,7 +13,7 @@ export const feedDiscoveryWorkerQueue = new Queue('feed-discovery-worker', {
   connection: sharedConnection as unknown as ConnectionOptions,
 });
 
-export const feedDiscoveryDispatcherQueue = new Queue('feed-discovery-dispatcher', {
+export const cookieRefreshWorkerQueue = new Queue('cookie-refresh-worker', {
   connection: sharedConnection as unknown as ConnectionOptions,
 });
 
@@ -21,7 +21,7 @@ export async function closeQueues(): Promise<void> {
   await Promise.all([
     pageCrawlQueue.close(),
     feedDiscoveryWorkerQueue.close(),
-    feedDiscoveryDispatcherQueue.close(),
+    cookieRefreshWorkerQueue.close(),
   ]);
   await sharedConnection.quit();
 }

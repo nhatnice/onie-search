@@ -1,16 +1,16 @@
 import { Buffer } from 'node:buffer';
 
 import {
-  chromium,
   type Browser,
   type BrowserContext,
   type Page,
   type Response as PlaywrightResponse,
 } from 'playwright-core';
 
+import { getBrowser } from '@/browser';
+
 import type { CrawlResponse } from '../types';
 import type { CrawlerAdapter } from './adapter';
-import { buildBrowserlessEndpoint } from './browserless-config';
 
 export interface PlaywrightAdapterOptions {
   timeoutSecs?: number;
@@ -21,30 +21,16 @@ const BLOCKED_RESOURCE_TYPES = new Set(['image', 'media', 'font', 'stylesheet'])
 export class PlaywrightCrawlerAdapter implements CrawlerAdapter {
   readonly name = 'playwright';
 
-  private browser: Browser | undefined;
   private context: BrowserContext | undefined;
   private readonly timeoutMs: number;
-  private launchPromise: Promise<Browser> | undefined;
 
   constructor(opts: PlaywrightAdapterOptions = {}) {
     this.timeoutMs = (opts.timeoutSecs ?? 30) * 1000;
   }
 
-  private async getBrowser(): Promise<Browser> {
-    if (this.browser) return this.browser;
-    if (!this.launchPromise) {
-      this.launchPromise = chromium.connectOverCDP(buildBrowserlessEndpoint()).then((b) => {
-        this.browser = b;
-        this.launchPromise = undefined;
-        return b;
-      });
-    }
-    return this.launchPromise;
-  }
-
   private async getContext(): Promise<BrowserContext> {
     if (this.context) return this.context;
-    const browser = await this.getBrowser();
+    const browser: Browser = await getBrowser();
     this.context = browser.contexts()[0] ?? (await browser.newContext());
     installAssetBlocker(this.context);
     return this.context;
@@ -66,10 +52,6 @@ export class PlaywrightCrawlerAdapter implements CrawlerAdapter {
     if (this.context) {
       await this.context.close().catch(() => undefined);
       this.context = undefined;
-    }
-    if (this.browser) {
-      await this.browser.close().catch(() => undefined);
-      this.browser = undefined;
     }
   }
 

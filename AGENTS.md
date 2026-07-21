@@ -457,6 +457,7 @@ Quy tắc:
 
 - **KHÔNG** dùng `@ts-expect-error` cho `nitro` property — nếu cần, nghĩa là config sai.
 - **Cron/scheduled tasks** dùng Nitro `scheduledTasks` config (map cron expression → task name) trong `vite.config.ts`. Tasks chạy qua Nitro scheduler (croner engine ở dev/node_server preset). Pattern xem [BullMQ](#bullmq-queue--retry--fan-out).
+  - **Dev mode caveat** (verified 2026-07-21): `vp dev` (Vite+ qua Nitro v3 vite plugin) KHÔNG chạy `scheduledTasks` tự động — `_dev.mjs` không reference scheduledTasks. Cron chỉ chạy trong Nitro standalone mode (prod build `pnpm build` → `node .output/server/index.mjs`). Trong dev, trigger thủ công qua `POST /_nitro/tasks/:name` hoặc `curl -X POST http://localhost:3000/_nitro/tasks/dispatch-feeds` để test flow.
 
 ### Chạy Tasks (CLI vs HTTP)
 

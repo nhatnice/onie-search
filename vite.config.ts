@@ -57,7 +57,14 @@ export default defineConfig({
         linkComponents: ['Link'],
       },
     },
-    ignorePatterns: ['.output', 'node_modules', 'src/routeTree.gen.ts', '.cache', 'scripts/'],
+    ignorePatterns: [
+      '.output',
+      'node_modules',
+      'src/routeTree.gen.ts',
+      '.cache',
+      'scripts/',
+      'src/features/social/runtime/facebook-internal/',
+    ],
     options: {
       typeAware: true,
       typeCheck: true,

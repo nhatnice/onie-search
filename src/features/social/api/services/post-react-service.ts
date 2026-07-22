@@ -63,6 +63,10 @@ export async function buildPostReactJobs(
   const targets = await listPendingPostTargets(db, limit);
   const jobs: DispatchPostReactJob[] = [];
   for (const { post } of targets) {
+    // ponytail: serial on purpose — `getOrCreateReactJob` reads then writes the same row,
+    // and `pickActiveScraperAccount` is per-platform. Parallel would 2×–4× the DB connection
+    // pool pressure without a real perf win at BATCH_SIZE=50. Re-evaluate if pool grows.
+    // eslint-disable-next-line eslint/no-await-in-loop
     const scraper = await pickActiveScraperAccount(db, post.platformId);
     if (!scraper) {
       console.warn(
@@ -70,6 +74,7 @@ export async function buildPostReactJobs(
       );
       continue;
     }
+    // eslint-disable-next-line eslint/no-await-in-loop
     const jobId = await getOrCreateReactJob(db, post.id, REACT_JOB_TYPE);
     jobs.push({
       postId: post.id,

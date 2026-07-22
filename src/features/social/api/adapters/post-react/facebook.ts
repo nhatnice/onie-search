@@ -36,7 +36,6 @@ const REACTION_SCRIPT_PATH = path.resolve(
   '..',
   '..',
   '..',
-  '..',
   'runtime',
   'facebook-internal',
   'reaction-export.js',

@@ -7,7 +7,7 @@ import {
   type Response as PlaywrightResponse,
 } from 'playwright-core';
 
-import { getBrowser } from '@/browser';
+import { getBrowser, isConnectionError } from '@/browser';
 
 import type { CrawlResponse } from '../types';
 import type { CrawlerAdapter } from './adapter';
@@ -85,13 +85,6 @@ export class PlaywrightCrawlerAdapter implements CrawlerAdapter {
   private async resetConnection(): Promise<void> {
     await this.close();
   }
-}
-
-function isConnectionError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /Target closed|Connection closed|WebSocket|disconnected|Browser has been closed/i.test(
-    msg,
-  );
 }
 
 // Chromium skips image/media/font/css so they never reach the DOM or RAM.

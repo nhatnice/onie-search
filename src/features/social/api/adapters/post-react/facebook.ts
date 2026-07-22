@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { type BrowserContext, type Page } from 'playwright-core';
 
@@ -29,16 +28,10 @@ const ROTATE_EVERY_N = Number(process.env['ROTATE_EVERY_N'] ?? '1000');
 const MAX_ROTATIONS_PER_POST = Number(process.env['MAX_ROTATIONS_PER_POST'] ?? '100');
 
 // ponytail: reaction-export.js is a third-party FB private exporter (see src/features/social/runtime/facebook-internal/README.md).
-// We load it from outside the feature folder to signal "opaque dependency, not our code."
-const filename = fileURLToPath(import.meta.url);
+// process.cwd() works in both dev (project root) and Docker (WORKDIR /app with src/ copied).
 const REACTION_SCRIPT_PATH = path.resolve(
-  path.dirname(filename),
-  '..',
-  '..',
-  '..',
-  'runtime',
-  'facebook-internal',
-  'reaction-export.js',
+  process.cwd(),
+  'src/features/social/runtime/facebook-internal/reaction-export.js',
 );
 const reactionScriptContent = fs.readFileSync(REACTION_SCRIPT_PATH, 'utf-8');
 

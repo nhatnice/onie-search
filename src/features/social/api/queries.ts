@@ -15,9 +15,11 @@ import {
   type PostCrawlJobType,
 } from './post-schema';
 import {
+  accountContacts,
   accounts,
   cookies,
   type Account,
+  type ContactType,
   type Cookie,
   type NewAccount,
   type NewCookie,
@@ -408,6 +410,56 @@ export async function insertPostReactsBulk(db: DbOrTx, rows: NewPostReact[]): Pr
 }
 
 export type { PostCrawlJobStatus, PostCrawlJobType };
+
+// ─── account contacts ──────────────────────────────────────────────────────────
+
+export async function insertAccountContact(
+  db: DbOrTx,
+  input: { accountId: string; type: ContactType; value: string },
+): Promise<void> {
+  await db
+    .insert(accountContacts)
+    .values({
+      id: crypto.randomUUID(),
+      accountId: input.accountId,
+      type: input.type,
+      value: input.value,
+    })
+    .onConflictDoNothing();
+}
+
+export interface AccountNeedingPhone {
+  id: string;
+  platformUserId: string;
+  platformId: string;
+}
+
+export async function getAccountsNeedingPhone(
+  db: DbOrTx,
+  platformId: string,
+  limit: number,
+): Promise<AccountNeedingPhone[]> {
+  return db
+    .select({
+      id: accounts.id,
+      platformUserId: accounts.platformUserId,
+      platformId: accounts.platformId,
+    })
+    .from(accounts)
+    .leftJoin(
+      accountContacts,
+      and(
+        eq(accountContacts.accountId, accounts.id),
+        eq(accountContacts.type, 'phone'),
+        isNull(accountContacts.deletedAt),
+      ),
+    )
+    .where(
+      and(eq(accounts.platformId, platformId), accountNotDeleted(), isNull(accountContacts.id)),
+    )
+    .orderBy(asc(accounts.createdAt))
+    .limit(limit);
+}
 
 export const POST_CRAWL_JOB_TYPES: readonly PostCrawlJobType[] = ['react', 'comment'] as const;
 export const POST_CRAWL_JOB_STATUSES: readonly PostCrawlJobStatus[] = [

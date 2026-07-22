@@ -3,10 +3,12 @@ export * from './post-schema';
 export {
   getAccount,
   getAccountByPlatformUser,
+  getAccountsNeedingPhone,
   getCookieById,
   getCookieByIdWithPlatform,
   getCookiesToRefresh,
   insertAccount,
+  insertAccountContact,
   insertCookie,
   markCookieDead,
   touchCookie,
@@ -31,6 +33,7 @@ export {
   upsertReactorAccount,
   POST_CRAWL_JOB_STATUSES,
   POST_CRAWL_JOB_TYPES,
+  type AccountNeedingPhone,
   type CookieWithPlatform,
   type PendingPostTarget,
   type ScraperAccount,
@@ -38,6 +41,7 @@ export {
 } from './queries';
 export { findCookieRefreshAdapter } from './adapters/registry';
 export { findPostReactCrawlAdapter } from './adapters/post-react/registry';
+export { findPhoneExtractAdapter } from './adapters/phone-extract/registry';
 export { refreshCookie, refreshCookieById } from './services/cookie-service';
 export {
   buildPostReactJobs,
@@ -50,3 +54,8 @@ export {
   type CrawlPostReactsResult,
   type DispatchPostReactJob,
 } from './services/post-react-service';
+export {
+  buildPhoneExtractJobs,
+  extractPhone,
+  type PhoneExtractJob,
+} from './services/phone-extract-service';

@@ -21,12 +21,17 @@ export const postReactCrawlQueue = new Queue('post-react-crawl', {
   connection: sharedConnection as unknown as ConnectionOptions,
 });
 
+export const phoneExtractWorkerQueue = new Queue('phone-extract-worker', {
+  connection: sharedConnection as unknown as ConnectionOptions,
+});
+
 export async function closeQueues(): Promise<void> {
   await Promise.all([
     pageCrawlQueue.close(),
     feedDiscoveryWorkerQueue.close(),
     cookieRefreshWorkerQueue.close(),
     postReactCrawlQueue.close(),
+    phoneExtractWorkerQueue.close(),
   ]);
   await sharedConnection.quit();
 }

@@ -123,10 +123,14 @@ export default defineConfig({
           handler: resolve(rootDir, 'src/runtime/tasks/dispatch-post-reacts.ts'),
           description: 'Query posts without crawl job and enqueue post-react-crawl jobs',
         },
+        'dispatch-phone-extract': {
+          handler: resolve(rootDir, 'src/runtime/tasks/dispatch-phone-extract.ts'),
+          description: 'Query accounts without phone and enqueue phone-extract-worker jobs',
+        },
       },
       scheduledTasks: {
-        '*/5 * * * *': 'dispatch-feeds',
-        '0 * * * *': ['dispatch-cookies', 'dispatch-post-reacts'],
+        '*/5 * * * *': ['dispatch-feeds', 'dispatch-phone-extract', 'dispatch-post-reacts'],
+        '0 * * * *': ['dispatch-cookies'],
       },
     }),
     stylex.vite({

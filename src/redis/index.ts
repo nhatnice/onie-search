@@ -4,5 +4,7 @@ export {
   cookieRefreshWorkerQueue,
   feedDiscoveryWorkerQueue,
   pageCrawlQueue,
+  phoneExtractWorkerQueue,
 } from './queues';
-export { dispatchFeeds, startWorkers, stopWorkers } from './workers';
+export { dispatchCapped } from './dispatch';
+export { dispatchFeeds, dispatchPhoneExtract, startWorkers, stopWorkers } from './workers';

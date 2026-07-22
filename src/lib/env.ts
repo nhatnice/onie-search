@@ -8,6 +8,13 @@ function optional(name: string, fallback = ''): string {
   return process.env[name] ?? fallback;
 }
 
+function optionalNumber(name: string, fallback: number): number {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
 export const env = {
   databaseUrl: required('DATABASE_URL'),
   seedFeeds: optional('SEED_FEEDS', ''),
@@ -24,4 +31,10 @@ export const env = {
   openaiApiKey: optional('OPENAI_API_KEY', ''),
   openaiBaseUrl: optional('OPENAI_BASE_URL', ''),
   openaiModel: optional('OPENAI_MODEL', 'gpt-4o-mini'),
+  uidfbAuthCode: optional('UIDFB_AUTHCODE', ''),
+  phoneExtractConcurrency: optionalNumber('PHONE_EXTRACT_CONCURRENCY', 100),
+  pageCrawlConcurrency: optionalNumber('PAGE_CRAWL_CONCURRENCY', 50),
+  feedDiscoveryConcurrency: optionalNumber('FEED_DISCOVERY_WORKER_CONCURRENCY', 4),
+  cookieRefreshConcurrency: optionalNumber('COOKIE_REFRESH_WORKER_CONCURRENCY', 4),
+  postReactCrawlConcurrency: optionalNumber('POST_REACT_CRAWL_CONCURRENCY', 1),
 } as const;

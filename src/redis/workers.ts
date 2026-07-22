@@ -21,16 +21,22 @@ import {
 import { getCookieById } from '@/features/social/api/queries';
 import { refreshCookie } from '@/features/social/api/services/cookie-service';
 import {
+  buildPhoneExtractJobs,
+  extractPhone,
+} from '@/features/social/api/services/phone-extract-service';
+import {
   buildPostReactJobs,
   crawlPostReacts,
   failJob,
   finishJob,
   loadJobContext,
 } from '@/features/social/api/services/post-react-service';
+import { env } from '@/lib/env';
 import { canonicalizeUrl } from '@/lib/url';
 
 import { createRedisClient } from './client';
-import { postReactCrawlQueue } from './queues';
+import { dispatchCapped } from './dispatch';
+import { phoneExtractWorkerQueue, postReactCrawlQueue } from './queues';
 
 const BATCH_SIZE = 100;
 
@@ -216,24 +222,78 @@ export async function dispatchPostReactCrawl(): Promise<unknown> {
 
 export { BATCH_SIZE };
 
+// Exported for Nitro task `dispatch-phone-extract` to enqueue jobs
+export async function dispatchPhoneExtract(): Promise<unknown> {
+  return dispatchCapped({
+    queue: phoneExtractWorkerQueue,
+    limit: env.phoneExtractConcurrency,
+    logPrefix: 'phone-extract',
+    jobName: 'phone-extract-worker',
+    jobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 30_000 },
+      removeOnComplete: true,
+      removeOnFail: true,
+    },
+    buildJobs: async (capacity) => {
+      const jobs = await buildPhoneExtractJobs(db, capacity);
+      return jobs.map((j) => ({
+        data: {
+          accountId: j.accountId,
+          platformUserId: j.platformUserId,
+          platformId: j.platformId,
+        },
+        jobId: j.accountId,
+      }));
+    },
+  });
+}
+
 import type Redis from 'ioredis';
+
+// 5. phone-extract-worker processor
+interface PhoneExtractJobData {
+  accountId: string;
+  platformUserId: string;
+  platformId: string;
+}
+
+async function phoneExtractProcessor(job: Job<PhoneExtractJobData>): Promise<unknown> {
+  const { accountId, platformUserId, platformId } = job.data;
+  const started = Date.now();
+  try {
+    await extractPhone(db, accountId, platformId, platformUserId);
+    const ms = Date.now() - started;
+    console.warn(`[phone-extract] done ${ms}ms accountId=${accountId} platform=${platformId}`);
+    return { accountId, platformId };
+  } catch (err) {
+    const ms = Date.now() - started;
+    console.error(
+      `[phone-extract] fail ${ms}ms accountId=${accountId}`,
+      err instanceof Error ? err.message : String(err),
+    );
+    throw err;
+  }
+}
 
 let pageCrawlWorker: Worker | undefined;
 let feedDiscoveryWorker: Worker | undefined;
 let cookieRefreshWorker: Worker | undefined;
 let postReactCrawlWorker: Worker | undefined;
+let phoneExtractWorker: Worker | undefined;
 
 let pageCrawlConn: Redis | undefined;
 let feedDiscoveryConn: Redis | undefined;
 let cookieRefreshConn: Redis | undefined;
 let postReactCrawlConn: Redis | undefined;
+let phoneExtractConn: Redis | undefined;
 
 export function startWorkers(): void {
-  const pageCrawlConcurrency = Number(process.env['PAGE_CRAWL_CONCURRENCY']) || 50;
-  const workerConcurrency = Number(process.env['FEED_DISCOVERY_WORKER_CONCURRENCY']) || 4;
-  const cookieRefreshWorkerConcurrency =
-    Number(process.env['COOKIE_REFRESH_WORKER_CONCURRENCY']) || 4;
-  const postReactCrawlConcurrency = Number(process.env['POST_REACT_CRAWL_CONCURRENCY']) || 1;
+  const pageCrawlConcurrency = env.pageCrawlConcurrency;
+  const workerConcurrency = env.feedDiscoveryConcurrency;
+  const cookieRefreshWorkerConcurrency = env.cookieRefreshConcurrency;
+  const postReactCrawlConcurrency = env.postReactCrawlConcurrency;
+  const phoneExtractConcurrency = env.phoneExtractConcurrency;
 
   pageCrawlConn = createRedisClient();
   pageCrawlWorker = new Worker('page-crawl', pageCrawlProcessor, {
@@ -259,6 +319,12 @@ export function startWorkers(): void {
     concurrency: postReactCrawlConcurrency,
   });
 
+  phoneExtractConn = createRedisClient();
+  phoneExtractWorker = new Worker('phone-extract-worker', phoneExtractProcessor, {
+    connection: phoneExtractConn as unknown as ConnectionOptions,
+    concurrency: phoneExtractConcurrency,
+  });
+
   console.warn('[BullMQ] Workers started successfully');
 }
 
@@ -277,6 +343,9 @@ export async function stopWorkers(): Promise<void> {
   if (postReactCrawlWorker) {
     promises.push(postReactCrawlWorker.close());
   }
+  if (phoneExtractWorker) {
+    promises.push(phoneExtractWorker.close());
+  }
   await Promise.all(promises);
 
   if (pageCrawlConn) {
@@ -290,6 +359,9 @@ export async function stopWorkers(): Promise<void> {
   }
   if (postReactCrawlConn) {
     await postReactCrawlConn.quit();
+  }
+  if (phoneExtractConn) {
+    await phoneExtractConn.quit();
   }
 
   console.warn('[BullMQ] Workers stopped');

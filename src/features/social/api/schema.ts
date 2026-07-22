@@ -47,10 +47,35 @@ export const cookies = socialSchema.table(
   ],
 );
 
+export const contactType = socialSchema.enum('contact_type', ['phone', 'email']);
+
+export const accountContacts = socialSchema.table(
+  'account_contacts',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    type: contactType('type').notNull(),
+    value: text('value').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('account_contacts_account_type').on(t.accountId, t.type),
+    index('idx_account_contacts_account').on(t.accountId),
+    index('idx_account_contacts_type').on(t.type),
+  ],
+);
+
 export type Platform = typeof platforms.$inferSelect;
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 export type Cookie = typeof cookies.$inferSelect;
 export type NewCookie = typeof cookies.$inferInsert;
 export type CookieStatus = 'active' | 'dead';
+export type ContactType = 'phone' | 'email';
+export type AccountContact = typeof accountContacts.$inferSelect;
+export type NewAccountContact = typeof accountContacts.$inferInsert;
 export type SocialPlatform = string;

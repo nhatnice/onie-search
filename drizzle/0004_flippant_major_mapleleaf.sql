@@ -1,0 +1,2 @@
+CREATE TYPE "social"."contact_type" AS ENUM('phone', 'email');--> statement-breakpoint
+ALTER TABLE "social"."account_contacts" ALTER COLUMN "type" SET DATA TYPE "social"."contact_type" USING "type"::"social"."contact_type";

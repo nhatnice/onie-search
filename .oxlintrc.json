@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "unicorn", "import", "jsx-a11y", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2022": true
+  },
+  "rules": {
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "eslint/no-unused-vars": "error",
+    "typescript/no-explicit-any": "warn",
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": "off",
+    "eslint/max-lines": ["error", { "max": 300, "skipBlankLines": true, "skipComments": true }],
+    "eslint/max-lines-per-function": [
+      "error",
+      { "max": 80, "skipBlankLines": true, "skipComments": true, "IIFEs": true }
+    ],
+    "eslint/max-classes-per-file": ["error", 1],
+    "react/prefer-function-component": "error",
+    "typescript/no-extraneous-class": "error",
+    "unicorn/no-static-only-class": "error"
+  },
+  "settings": {
+    "react": {
+      "linkComponents": [{ "name": "Link", "linkAttribute": "to" }]
+    }
+  },
+  "ignorePatterns": [
+    ".output",
+    "node_modules",
+    "src/routeTree.gen.ts",
+    ".cache",
+    "scripts/",
+    "src/features/social/runtime/facebook-internal/"
+  ]
+}

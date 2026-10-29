@@ -51,6 +51,15 @@ export default defineConfig({
       'import/no-named-as-default-member': 'off',
       'import/no-unassigned-import': 'off',
       'vite-plus/prefer-vite-plus-imports': 'error',
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 80, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-classes-per-file': ['error', 1],
+      'react/prefer-function-component': 'error',
+      'typescript/no-extraneous-class': 'error',
+      'unicorn/no-static-only-class': 'error',
     },
     settings: {
       react: {

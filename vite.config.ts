@@ -137,10 +137,12 @@ export default defineConfig({
           description: 'Query accounts without phone and enqueue phone-extract-worker jobs',
         },
       },
-      scheduledTasks: {
-        '*/5 * * * *': ['dispatch-feeds', 'dispatch-phone-extract', 'dispatch-post-reacts'],
-        '0 * * * *': ['dispatch-cookies'],
-      },
+      // Tạm tắt scheduledTasks để dừng các job background tự động crawl dữ liệu
+      scheduledTasks: {},
+      // scheduledTasks: {
+      //   '*/5 * * * *': ['dispatch-feeds', 'dispatch-phone-extract', 'dispatch-post-reacts'],
+      //   '0 * * * *': ['dispatch-cookies'],
+      // },
     }),
     stylex.vite({
       dev: process.env.NODE_ENV === 'development',

@@ -1,14 +1,19 @@
-import { setupEventListeners } from '@/events/listeners';
-import { startWorkers, stopWorkers, closeQueues } from '@/redis';
+// Tạm thời comment out các import không dùng để tránh eslint unused vars khi tạm tắt workers
+// import { setupEventListeners } from '@/events/listeners';
+// import { startWorkers } from '@/redis';
+import { closeQueues, stopWorkers } from '@/redis';
 
 export default function (nitroApp: {
   hooks: { hook: (name: string, cb: () => Promise<void>) => void };
 }): void {
-  // Setup event listeners (enqueue BullMQ jobs from domain events)
-  setupEventListeners();
+  // Tạm tắt background workers & crawl event listeners theo yêu cầu
+  console.warn('[BullMQ] Background workers & crawl event listeners are temporarily disabled');
 
-  // Start BullMQ workers (consume jobs)
-  startWorkers();
+  // // Setup event listeners (enqueue BullMQ jobs from domain events)
+  // setupEventListeners();
+
+  // // Start BullMQ workers (consume jobs)
+  // startWorkers();
 
   // Graceful Shutdown Hook
   nitroApp.hooks.hook('close', async () => {
